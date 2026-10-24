@@ -2,6 +2,8 @@ import { Sequelize } from "sequelize";
 import dbConfig from "../config/db-config";
 import defineAdmin from "./admin";
 import defineCompany from "./company";
+import defineCompanyDetails from "./companydetails";
+import defineFinancialYear from "./financialyear";
 
 const sequelize = new Sequelize(
   dbConfig.DB as string,
@@ -21,6 +23,8 @@ const db: any = {};
 
 db.admin = defineAdmin(sequelize);
 db.company = defineCompany(sequelize);
+db.companydetails = defineCompanyDetails(sequelize);
+db.financialyear = defineFinancialYear(sequelize);
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
