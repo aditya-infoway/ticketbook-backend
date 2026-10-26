@@ -8,6 +8,7 @@ import defineDepartmenttype from "./departmenttype";
 import regiontype from "./regiontype";
 import defineDepartment from "./department";
 import defineCompanyPrefix from "./companyprefix";
+import defineregion from "./region";
 const sequelize = new Sequelize(
   dbConfig.DB as string,
   dbConfig.USER as string,
@@ -32,7 +33,7 @@ db.departmenttype = defineDepartmenttype(sequelize);
 db.regiontype = regiontype(sequelize);
 db.department = defineDepartment(sequelize);
 db.companyprefix = defineCompanyPrefix(sequelize);
-
+db.region = defineregion(sequelize);
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
