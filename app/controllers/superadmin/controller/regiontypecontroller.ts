@@ -9,10 +9,13 @@ import {
   selectWithJoins,
   selectWithJoinsV2,
 } from "../../../helper/index";
+import { generateVoucherNo } from "../../../helper/billNoGenerator";
+import { getFinancialYearById } from "../../../helper/financialYear";
 
 // ---- Types ----
 interface RegionTypeBody {
   regionTypeId?: string | number;
+  financialYearId?: string | number;
   typeCode: string;
   typeName: string;
   description?: string | null;
@@ -88,6 +91,38 @@ const isTypeCodeTaken = async (
   );
 };
 
+// Unique Region Type No (prefix + FY + running number), retry on collision
+const generateUniqueRegionTypeNo = async (
+  companyId: number,
+  financialYearId: number,
+): Promise<string | null> => {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const result = await generateVoucherNo({
+      companyId,
+      financialYearId,
+      tableName: "regiontype",
+      idColumn: "regionTypeId",
+      prefixFor: "REGION_TYPE",
+    });
+
+    // company hasn't saved a prefix -> fall back to "RT"
+    const no = result.prefixUsed ? result.billNo : `RT/${result.billNo}`;
+
+    const existing: any[] = await selectWithJoins(
+      "regiontype",
+      [],
+      { companyId, financialYearId, regionTypeNo: no, delete: 0 },
+      ["regionTypeId"],
+    );
+
+    if (existing.length === 0) return no;
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  return null;
+};
+
 // ---- Create Region Type ----
 export const createRegionType = async (
   req: Request,
@@ -100,8 +135,20 @@ export const createRegionType = async (
       return requiredmessage(res, "Unauthorized. Please login again.");
     }
 
-    const { typeCode, typeName, description, displayOrder, status } =
-      req.body as RegionTypeBody;
+    const {
+      financialYearId,
+      typeCode,
+      typeName,
+      description,
+      displayOrder,
+      status,
+    } = req.body as RegionTypeBody;
+
+    const fy: any = await getFinancialYearById(
+      financialYearId as any,
+      Number(auth.companyId),
+    );
+    if (!fy) return errorResponse(res, "Invalid Financial Year.");
 
     const code = normalizeCode(typeCode);
 
@@ -109,8 +156,21 @@ export const createRegionType = async (
       return requiredmessage(res, "Type code already exists.");
     }
 
+    const regionTypeNo = await generateUniqueRegionTypeNo(
+      Number(auth.companyId),
+      fy.financialYearId,
+    );
+    if (!regionTypeNo) {
+      return errorResponse(
+        res,
+        "Could not generate a unique Type ID. Please try again.",
+      );
+    }
+
     const payload = {
       companyId: auth.companyId,
+      financialYearId: fy.financialYearId,
+      regionTypeNo,
       typeCode: code,
       typeName: String(typeName || "").trim(),
       description: description ? String(description).trim() : "",
@@ -130,7 +190,7 @@ export const createRegionType = async (
 
     return successResponse(
       res,
-      { regionTypeId },
+      { regionTypeId, regionTypeNo },
       "Region type created successfully.",
     );
   } catch (error) {
@@ -160,6 +220,7 @@ export const getRegionTypeList = async (
     };
     const attributes = [
       '"regiontype"."regionTypeId"',
+      '"regiontype"."regionTypeNo"',
       '"regiontype"."typeCode"',
       '"regiontype"."typeName"',
       '"regiontype"."description"',
@@ -282,6 +343,55 @@ export const deleteRegionType = async (
     );
 
     return successResponse(res, {}, "Region type deleted successfully.");
+  } catch (error) {
+    return errorResponse(res, "Something Went Wrong", error);
+  }
+};
+
+// ---- Next Region Type No (drawer preview) ----
+export const getNextRegionTypeNo = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  try {
+    const auth = await getAuthFromToken(req);
+
+    if (!auth) {
+      return requiredmessage(res, "Unauthorized. Please login again.");
+    }
+
+    const { financialYearId } = req.query as { financialYearId?: string };
+
+    if (!financialYearId) {
+      return errorResponse(
+        res,
+        "Financial Year not found. Please select a company year.",
+      );
+    }
+
+    const fy: any = await getFinancialYearById(
+      financialYearId as any,
+      Number(auth.companyId),
+    );
+    if (!fy) return errorResponse(res, "Invalid Financial Year.");
+
+    const regionTypeNo = await generateUniqueRegionTypeNo(
+      Number(auth.companyId),
+      fy.financialYearId,
+    );
+
+    if (!regionTypeNo) {
+      return errorResponse(
+        res,
+        "Could not generate a unique Type ID. Please try again.",
+      );
+    }
+
+    return successResponse(
+      res,
+      { regionTypeNo, fyLabel: fy.fyLabel },
+      "Type ID generated successfully",
+    );
   } catch (error) {
     return errorResponse(res, "Something Went Wrong", error);
   }

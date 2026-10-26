@@ -6,13 +6,16 @@ const optionalDisplayOrder = Joi.alternatives()
   .optional();
 
 export const regionTypeCreateSchema = Joi.object({
+  financialYearId: Joi.alternatives()
+    .try(Joi.number().integer(), Joi.string().trim())
+    .optional(),
   typeCode: Joi.string()
     .trim()
-    .pattern(/^[A-Za-z0-9_-]{2,30}$/)
+    .pattern(/^[A-Za-z0-9_\/-]{2,30}$/)
     .required()
     .messages({
       "string.pattern.base":
-        "Type code must be 2-30 characters (letters, numbers, - or _)",
+        "Type code must be 2-30 characters (letters, numbers, -, _ or /)",
       "string.empty": "Type code is required",
       "any.required": "Type code is required",
     }),

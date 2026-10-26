@@ -30,6 +30,7 @@ routes.use(checktoken);
 
 // ---- Region Type ----
 routes.get("/list", regionType.getRegionTypeList);
+routes.get("/next-number", regionType.getNextRegionTypeNo);
 
 routes.post(
   "/create",

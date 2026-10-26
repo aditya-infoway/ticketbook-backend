@@ -8,7 +8,5 @@ export default (app: Application): void => {
   superadminRoutes(app);
   departmenttypeRoutes(app);
   regiontypeRoutes(app);
-   departmentRoutes(app);
+  departmentRoutes(app);
 };
-
-
