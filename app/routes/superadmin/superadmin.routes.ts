@@ -9,16 +9,16 @@ import {
 import { errorResponse } from "../../helper/index";
 import * as company from "../../controllers/superadmin/controller/companycontroller";
 import * as companyDetails from "../../controllers/superadmin/controller/companydetailscontroller";
-// import * as prefix from "../../controllers/superadmin/controller/prefixcontroller";
+import * as prefix from "../../controllers/superadmin/controller/prefixcontroller";
 import * as companyvalidation from "../../controllers/superadmin/validator/companyvalidator";
 import {
   companyDetailsSchema,
   companyDetailsUpdateSchema,
 } from "../../controllers/superadmin/validator/companydetailsvalidator";
-// import {
-//   prefixCreateSchema,
-//   prefixUpdateSchema,
-// } from "../../controllers/superadmin/validator/prefixvalidator";
+import {
+  prefixCreateSchema,
+  prefixUpdateSchema,
+} from "../../controllers/superadmin/validator/prefixvalidator";
 import { checktoken } from "../../middleware/token";
 import { createUploader } from "../../middleware/upload";
 
@@ -70,11 +70,11 @@ routes.post(
 routes.get("/financial-years", companyDetails.getFinancialYears);
 routes.get("/company-details", companyDetails.getCompanyDetails);
 
-// ---- Prefix ----
-// routes.post("/prefix/create", validate(prefixCreateSchema), prefix.createPrefix);
-// routes.post("/prefix/update", validate(prefixUpdateSchema), prefix.updatePrefix);
-// routes.get("/prefix/list", prefix.getPrefixList);
-// 
+
+routes.post("/prefix/create", validate(prefixCreateSchema), prefix.createPrefix);
+routes.post("/prefix/update", validate(prefixUpdateSchema), prefix.updatePrefix);
+routes.get("/prefix/list", prefix.getPrefixList);
+
 export default (app: Application): void => {
   app.use("/superadmin", routes);
 };
