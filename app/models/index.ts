@@ -4,7 +4,7 @@ import defineAdmin from "./admin";
 import defineCompany from "./company";
 import defineCompanyDetails from "./companydetails";
 import defineFinancialYear from "./financialyear";
-
+import defineDepartmenttype from "./departmenttype";
 const sequelize = new Sequelize(
   dbConfig.DB as string,
   dbConfig.USER as string,
@@ -25,7 +25,7 @@ db.admin = defineAdmin(sequelize);
 db.company = defineCompany(sequelize);
 db.companydetails = defineCompanyDetails(sequelize);
 db.financialyear = defineFinancialYear(sequelize);
-
+db.departmenttype = defineDepartmenttype(sequelize);
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
