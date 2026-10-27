@@ -79,9 +79,7 @@ const normalizeCode = (value: unknown): string =>
     .toUpperCase();
 
 const toNumberOrNull = (value: unknown): number | null =>
-  value === undefined || value === null || value === ""
-    ? null
-    : Number(value);
+  value === undefined || value === null || value === "" ? null : Number(value);
 
 // Logged-in employee ho to uska id, nahi to body ka createdBy, warna Admin
 const getCreator = (
@@ -292,7 +290,7 @@ export const createDepartment = async (
       );
     }
 
-  const creator = getCreator(req, body, companyId);
+    const creator = getCreator(req, body, companyId);
 
     const saved: any = await saveModel("department", {
       companyId,
@@ -340,7 +338,7 @@ export const getDepartmentList = async (
       );
     }
 
-    const rows: DepartmentRow[] = await selectWithJoins(
+       const rows = (await selectWithJoins(
       "department",
       [],
       { companyId, delete: 0 },
@@ -363,28 +361,28 @@ export const getDepartmentList = async (
         "updated",
       ],
       [["departmentId", "DESC"]],
-    );
+    )) as unknown as DepartmentRow[];
 
     if (!rows.length) {
       return successResponse(res, [], "Departments fetched successfully.");
     }
 
     // Type names
-  const typeRows: any[] = await selectWithJoins(
-  "departmenttype",
-  [],
-  {
-    companyId,
-    delete: 0,
-  },
-  ["departmentTypeId", "typeName"],
-);
+    const typeRows: any[] = await selectWithJoins(
+      "departmenttype",
+      [],
+      {
+        companyId,
+        delete: 0,
+      },
+      ["departmentTypeId", "typeName"],
+    );
 
-const typeMap: Record<string, string> = {};
+    const typeMap: Record<string, string> = {};
 
-typeRows.forEach((t) => {
-  typeMap[String(t.departmentTypeId)] = t.typeName;
-});
+    typeRows.forEach((t) => {
+      typeMap[String(t.departmentTypeId)] = t.typeName;
+    });
 
     // Parent names
     const nameMap: Record<string, string> = {};
@@ -392,65 +390,68 @@ typeRows.forEach((t) => {
       nameMap[String(r.departmentId)] = r.departmentName;
     });
 
-    // Employee names (createdBy / updatedBy numeric ho to)
-    const empIds = [
+    // // Employee names (createdBy / updatedBy numeric ho to)
+    // const empIds = [
+    //   ...new Set(
+    //     rows
+    //       .flatMap((r) => [r.createdBy, r.updatedBy])
+    //       .filter(
+    //         (id): id is string =>
+    //           Boolean(id) && id !== "Admin" && !isNaN(Number(id)),
+    //       ),
+    //   ),
+    // ];
+
+    // const empMap: Record<string, string> = {};
+
+    // if (empIds.length) {
+    //   try {
+    //     const emps: any[] = await selectWithJoins(
+    //       "employee",
+    //       [],
+    //       { employeeId: empIds },
+    //       ["employeeId", "employeeName"],
+    //     );
+    //     emps.forEach((e) => {
+    //       empMap[String(e.employeeId)] = e.employeeName || "";
+    //     });
+    //   } catch (err) {
+    //     console.error("Error fetching employees:", err);
+    //   }
+    // }
+    // Company names (createdBy = companyId ho to)
+    const companyMap: Record<string, string> = {};
+    const compIds = [
       ...new Set(
         rows
           .flatMap((r) => [r.createdBy, r.updatedBy])
-          .filter(
-            (id): id is string =>
-              Boolean(id) && id !== "Admin" && !isNaN(Number(id)),
-          ),
+          .filter((id): id is string => Boolean(id) && !isNaN(Number(id))),
       ),
     ];
-
-    const empMap: Record<string, string> = {};
-
-    if (empIds.length) {
+    if (compIds.length) {
       try {
-        const emps: any[] = await selectWithJoins(
-          "employee",
+        const comps: any[] = await selectWithJoins(
+          "company",
           [],
-          { employeeId: empIds },
-          ["employeeId", "employeeName"],
+          { companyId: compIds, delete: 0 },
+          ["companyId", "companyName"],
         );
-        emps.forEach((e) => {
-          empMap[String(e.employeeId)] = e.employeeName || "";
+        comps.forEach((c) => {
+          companyMap[String(c.companyId)] = c.companyName || "";
         });
       } catch (err) {
-        console.error("Error fetching employees:", err);
+        console.error("Error fetching companies:", err);
       }
     }
-// Company names (createdBy = companyId ho to)
-const companyMap: Record<string, string> = {};
-const compIds = [
-  ...new Set(
-    rows
-      .flatMap((r) => [r.createdBy, r.updatedBy])
-      .filter((id): id is string => Boolean(id) && !isNaN(Number(id))),
-  ),
-];
-if (compIds.length) {
-  try {
-    const comps: any[] = await selectWithJoins(
-      "company",
-      [],
-      { companyId: compIds, delete: 0 },
-      ["companyId", "companyName"],
-    );
-    comps.forEach((c) => {
-      companyMap[String(c.companyId)] = c.companyName || "";
-    });
-  } catch (err) {
-    console.error("Error fetching companies:", err);
-  }
-}
-   const who = (value: string | null, type?: string | null): string => {
+   // ---- Employee IDs + empMap block poora hata do ----
+
+const who = (value: string | null): string => {
   if (!value) return "";
-  const key = String(value);
-  if (type === "Employee") return empMap[key] || key;
-  return companyMap[key] || empMap[key] || key;
+  return companyMap[String(value)] || String(value);
 };
+
+
+
     const data = rows.map((r) => ({
       id: String(r.departmentId),
       departmentId: r.departmentId,
@@ -460,7 +461,7 @@ if (compIds.length) {
       departmentName: r.departmentName,
       description: r.description || "",
       departmentTypeId: r.departmentTypeId,
-typeName: typeMap[String(r.departmentTypeId)] || "",
+      typeName: typeMap[String(r.departmentTypeId)] || "",
       parentDepartmentId: r.parentDepartmentId,
       parentName: r.parentDepartmentId
         ? nameMap[String(r.parentDepartmentId)] || ""
@@ -468,8 +469,8 @@ typeName: typeMap[String(r.departmentTypeId)] || "",
       scope: r.scope,
       status: r.status,
       displayOrder: r.displayOrder,
-     createdBy: who(r.createdBy, r.createdtype),
-updatedBy: who(r.updatedBy, r.createdtype),
+     createdBy: who(r.createdBy),
+updatedBy: who(r.updatedBy),
       created: r.created,
       updated: r.updated,
     }));
@@ -523,7 +524,7 @@ export const updateDepartment = async (
 
     if (relationError) return errorResponse(res, relationError);
 
-  const creator = getCreator(req, body, companyId);
+    const creator = getCreator(req, body, companyId);
 
     // departmentNo, financialYearId, createdBy update me change nahi hote
     await updateModel(
