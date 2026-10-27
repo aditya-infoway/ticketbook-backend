@@ -12,6 +12,9 @@ import defineregion from "./region";
 import definerolecategory from "./rolecategory"
 import definerole from "./role"
 import defineroledepartment from "./roledepartment"
+import definebranch from "./branch";
+import defineemployeetype from "./employeetype";
+
 const sequelize = new Sequelize(
   dbConfig.DB as string,
   dbConfig.USER as string,
@@ -41,6 +44,8 @@ db.rolecategory = definerolecategory(sequelize);
 db.role = definerole(sequelize);
 db.roledepartment = defineroledepartment(sequelize);
 
+db.branch = definebranch(sequelize);
+db.employeetype = defineemployeetype(sequelize);
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

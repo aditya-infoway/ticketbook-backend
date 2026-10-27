@@ -106,7 +106,7 @@ const generateUniqueRegionTypeNo = async (
     });
 
     // company hasn't saved a prefix -> fall back to "RT"
-    const no = result.prefixUsed ? result.billNo : `RT/${result.billNo}`;
+    const no = result.prefixUsed ? result.billNo : `${result.billNo}`;
 
     const existing: any[] = await selectWithJoins(
       "regiontype",

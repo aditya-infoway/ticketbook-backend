@@ -7,6 +7,11 @@ import departmentRoutes from "./department.routes";
 import regionRoutes from "./region.routes";
 import rolecategoryRoutes from "./rolecategory.routes";
 import roleRoutes from "./role.routes";
+import branchRoutes from "./branch.routes";
+import employeetypeRoutes from "./employeetype.routes";
+
+
+
 export default (app: Application): void => {
   superadminRoutes(app);
   departmenttypeRoutes(app);
@@ -15,4 +20,6 @@ export default (app: Application): void => {
   regionRoutes(app);
   rolecategoryRoutes(app);
   roleRoutes(app);
+  branchRoutes(app);
+  employeetypeRoutes(app);
 };
