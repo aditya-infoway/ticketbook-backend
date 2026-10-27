@@ -9,8 +9,7 @@ import rolecategoryRoutes from "./rolecategory.routes";
 import roleRoutes from "./role.routes";
 import branchRoutes from "./branch.routes";
 import employeetypeRoutes from "./employeetype.routes";
-
-
+import employeeRoutes from "./employee.routes";
 
 export default (app: Application): void => {
   superadminRoutes(app);
@@ -22,4 +21,5 @@ export default (app: Application): void => {
   roleRoutes(app);
   branchRoutes(app);
   employeetypeRoutes(app);
+  employeeRoutes(app);
 };
