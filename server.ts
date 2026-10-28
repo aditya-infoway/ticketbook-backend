@@ -1,7 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import path from "path";
-
+import "dotenv/config";
 import db from "./app/models/index";
 import routes from "./app/routes/index";
 

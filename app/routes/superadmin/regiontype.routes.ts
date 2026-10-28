@@ -49,3 +49,4 @@ routes.delete("/delete", regionType.deleteRegionType);
 export default (app: Application): void => {
   app.use("/superadmin/region-type", routes);
 };
+  

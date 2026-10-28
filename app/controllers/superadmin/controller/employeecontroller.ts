@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import * as fs from "fs";
 import * as path from "path";
-
+import "multer";
 import {
   errorResponse,
   successResponse,
@@ -10,7 +10,7 @@ import {
   saveModel,
   updateModel,
   selectWithJoins,
-  getBlobTempPublicUrl
+  getBlobTempPublicUrl,
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
 import { generateVoucherNo } from "../../../helper/billNoGenerator";
@@ -340,15 +340,12 @@ export const getNextEmployeeNo = async (
   }
 };
 
-
-
 const removeOldFile = (oldFile?: string | null): void => {
   if (!oldFile) return;
   fs.unlink(path.join("./Uploadimages", oldFile), (err) => {
     if (err) console.log("Old file delete failed:", err.message);
   });
 };
-
 
 // ---- Create Employee ----
 export const createEmployee = async (
@@ -422,14 +419,14 @@ export const createEmployee = async (
     const passwordHash = body.password
       ? await bcrypt.hash(String(body.password), 10)
       : null;
-const photoFile = (req as any).file as Express.Multer.File | undefined;
+    const photoFile = (req as any).file as Express.Multer.File | undefined;
     const saved: any = await saveModel("employee", {
       companyId,
       financialYearId: fy.financialYearId,
       employeeNo,
       employeeCode: code,
       employeeName: toText(body.employeeName),
-   profilePhoto: photoFile ? "employee_photo/" + photoFile.filename : "",
+      profilePhoto: photoFile ? "employee_photo/" + photoFile.filename : "",
       officialEmail: email || null,
       password: passwordHash,
       mobileCountryCode: toText(body.mobileCountryCode),
@@ -600,7 +597,9 @@ export const getEmployeeList = async (
         employeeNo: r.employeeNo || "",
         employeeCode: r.employeeCode,
         employeeName: r.employeeName,
-   profilePhoto: r.profilePhoto ? getBlobTempPublicUrl(r.profilePhoto) : "",
+        profilePhoto: r.profilePhoto
+          ? getBlobTempPublicUrl(r.profilePhoto)
+          : "",
         officialEmail: r.officialEmail || "",
         mobileCountryCode: r.mobileCountryCode || "",
         mobileNumber: r.mobileNumber || "",
@@ -662,7 +661,13 @@ export const updateEmployee = async (
       "employee",
       [],
       { employeeId, companyId, delete: 0 },
-["employeeId", "employeeTypeId", "roleCategoryId", "roleId", "profilePhoto"],
+      [
+        "employeeId",
+        "employeeTypeId",
+        "roleCategoryId",
+        "roleId",
+        "profilePhoto",
+      ],
     );
     if (!existingRows.length)
       return requiredmessage(res, "Employee not found.");
@@ -726,11 +731,11 @@ export const updateEmployee = async (
     };
 
     // Only touch the photo when a new one is sent
-  const photoFile = (req as any).file as Express.Multer.File | undefined;
-if (photoFile) {
-  updatePayload.profilePhoto = "employee_photo/" + photoFile.filename;
-  removeOldFile(existingRows[0].profilePhoto);
-}
+    const photoFile = (req as any).file as Express.Multer.File | undefined;
+    if (photoFile) {
+      updatePayload.profilePhoto = "employee_photo/" + photoFile.filename;
+      removeOldFile(existingRows[0].profilePhoto);
+    }
 
     // Only change the password when a new one was typed
     if (body.password) {

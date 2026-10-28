@@ -10,6 +10,7 @@ export interface GenerateVoucherNoParams {
   tag?: string;
   extraWhere?: Record<string, unknown>;
   padLength?: number;
+  numberColumn?: string; // defaults to `${tableName}No`
 }
 
 export interface GenerateVoucherNoResult {
@@ -25,7 +26,7 @@ export interface GenerateVoucherNoResult {
 // to blank ("") return hoga — koi fixed/fallback prefix nahi.
 const getCompanyPrefix = async (
   companyId: number,
-  prefixFor?: string
+  prefixFor?: string,
 ): Promise<string> => {
   if (!prefixFor) return "";
 
@@ -33,7 +34,7 @@ const getCompanyPrefix = async (
     "companyprefix",
     [],
     { companyId, prefixFor, delete: 0 },
-    ["prefix"]
+    ["prefix"],
   );
 
   return rows.length > 0 && rows[0].prefix ? String(rows[0].prefix) : "";
@@ -48,6 +49,7 @@ export const generateVoucherNo = async ({
   tag = "",
   extraWhere = {},
   padLength = 3,
+  numberColumn,
 }: GenerateVoucherNoParams): Promise<GenerateVoucherNoResult> => {
   if (!financialYearId) {
     throw new Error("Financial Year not found in session.");
@@ -70,20 +72,35 @@ export const generateVoucherNo = async ({
     financialYearId: fy.financialYearId,
     ...extraWhere,
   };
+  const numberCol = numberColumn || `${tableName}No`;
 
   const existingRows: any[] = await selectWithJoins(
     tableName,
     [],
     whereClause,
-    [idColumn]
+    [idColumn, numberCol],
   );
-  const nextSeq = existingRows.length + 1;
-  const seqPadded = String(nextSeq).padStart(padLength, "0");
 
+  let maxSeq = 0;
+
+  for (const row of existingRows) {
+    const possibleNo = row[numberCol] || "";
+
+    if (typeof possibleNo === "string" && possibleNo.includes("/")) {
+      const lastPart = possibleNo.split("/").pop();
+      const num = parseInt(lastPart || "0", 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  }
+
+  const nextSeq = maxSeq + 1;
+  const seqPadded = String(nextSeq).padStart(padLength, "0");
   // 👇 blank prefix ya blank tag ki wajah se voucherNo me khaali "//" na aaye,
   // isliye empty parts ko filter kar diya
   const parts = [prefix, tag, fy.fyLabel, seqPadded].filter(
-    (p) => p !== "" && p != null
+    (p) => p !== "" && p != null,
   );
 
   const voucherNo = parts.join("/");

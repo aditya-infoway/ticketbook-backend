@@ -31,8 +31,8 @@ interface BranchBody {
   branchEmail: string;
   password?: string | null;
   confirmPassword?: string | null;
-  branchManager?: string | null;
-  areaManager?: string | null;
+branchManagerId?: Id | null;
+areaManagerId?: Id | null;
   openingDate?: string | null;
   workingHours?: string | null;
   status?: string;
@@ -142,6 +142,38 @@ const validateRegion = async (
   return rows.length ? null : "Selected region / area was not found.";
 };
 
+const checkManager = async (
+  companyId: Id,
+  employeeId: number | null,
+  roleName: string,
+): Promise<string | null> => {
+  if (!employeeId) return null; // optional
+
+  const emps: any[] = await selectWithJoins(
+    "employee",
+    [],
+    { employeeId, companyId, employmentStatus: "Active", delete: 0 },
+    ["employeeId", "roleId"],
+  );
+  if (!emps.length) return `Selected ${roleName} was not found or is inactive.`;
+
+  const roles: any[] = emps[0].roleId
+    ? await selectWithJoins(
+        "role",
+        [],
+        { roleId: emps[0].roleId, companyId, delete: 0 },
+        ["roleName"],
+      )
+    : [];
+
+  if (
+    !roles.length ||
+    String(roles[0].roleName).trim().toLowerCase() !== roleName.toLowerCase()
+  ) {
+    return `Selected employee is not a ${roleName}.`;
+  }
+  return null;
+};
 // Unique Branch No (prefix + FY + running number), retry on collision
 const generateUniqueBranchNo = async (
   companyId: number,
@@ -254,6 +286,13 @@ export const createBranch = async (
     const regionError = await validateRegion(companyId, regionId);
     if (regionError) return errorResponse(res, regionError);
 
+const branchManagerId = toNumberOrNull(body.branchManagerId);
+const areaManagerId = toNumberOrNull(body.areaManagerId);
+
+const managerError =
+  (await checkManager(companyId, branchManagerId, "Branch Manager")) ||
+  (await checkManager(companyId, areaManagerId, "Area Manager"));
+if (managerError) return errorResponse(res, managerError);
     const branchNo = await generateUniqueBranchNo(
       Number(companyId),
       fy.financialYearId,
@@ -284,8 +323,8 @@ export const createBranch = async (
       phoneNumber: toText(body.phoneNumber),
       branchEmail: email,
       password: passwordHash,
-      branchManager: toText(body.branchManager),
-      areaManager: toText(body.areaManager),
+ branchManagerId,
+areaManagerId,
       openingDate: body.openingDate ? body.openingDate : null,
       workingHours: toText(body.workingHours),
       status: body.status || "Active",
@@ -343,8 +382,8 @@ export const getBranchList = async (
         "contactNumber",
         "phoneNumber",
         "branchEmail",
-        "branchManager",
-        "areaManager",
+       "branchManagerId",
+        "areaManagerId",
         "openingDate",
         "workingHours",
         "status",
@@ -373,7 +412,16 @@ export const getBranchList = async (
     regionRows.forEach((r) => {
       regionMap[String(r.regionId)] = r.regionName || "";
     });
-
+const empRows: any[] = await selectWithJoins(
+  "employee",
+  [],
+  { companyId, delete: 0 },
+  ["employeeId", "employeeName"],
+);
+const empMap: Record<string, string> = {};
+empRows.forEach((e) => {
+  empMap[String(e.employeeId)] = e.employeeName;
+});
     const data = rows.map((r) => ({
       id: String(r.branchId),
       branchId: r.branchId,
@@ -391,8 +439,10 @@ export const getBranchList = async (
       contactNumber: r.contactNumber || "",
       phoneNumber: r.phoneNumber || "",
       branchEmail: r.branchEmail,
-      branchManager: r.branchManager || "",
-      areaManager: r.areaManager || "",
+    branchManagerId: r.branchManagerId ?? null,
+areaManagerId: r.areaManagerId ?? null,
+branchManager: r.branchManagerId ? empMap[String(r.branchManagerId)] || "" : "",
+areaManager: r.areaManagerId ? empMap[String(r.areaManagerId)] || "" : "",
       openingDate: r.openingDate || "",
       workingHours: r.workingHours || "",
       status: r.status,
@@ -425,12 +475,12 @@ export const updateBranch = async (
     const body = req.body as BranchBody;
     const { branchId } = body;
 
-    const existing: any[] = await selectWithJoins(
-      "branch",
-      [],
-      { branchId, companyId, delete: 0 },
-      ["branchId"],
-    );
+   const existing: any[] = await selectWithJoins(
+  "branch",
+  [],
+  { branchId, companyId, delete: 0 },
+  ["branchId", "branchManagerId", "areaManagerId"],
+);
     if (!existing.length) return requiredmessage(res, "Branch not found.");
 
     const code = normalizeCode(body.branchCode);
@@ -446,7 +496,17 @@ export const updateBranch = async (
     const regionId = toNumberOrNull(body.regionId);
     const regionError = await validateRegion(companyId, regionId);
     if (regionError) return errorResponse(res, regionError);
+const branchManagerId = toNumberOrNull(body.branchManagerId);
+const areaManagerId = toNumberOrNull(body.areaManagerId);
 
+const managerError =
+  (branchManagerId !== (existing[0].branchManagerId ?? null)
+    ? await checkManager(companyId, branchManagerId, "Branch Manager")
+    : null) ||
+  (areaManagerId !== (existing[0].areaManagerId ?? null)
+    ? await checkManager(companyId, areaManagerId, "Area Manager")
+    : null);
+if (managerError) return errorResponse(res, managerError);
     const creator = getCreator(req, companyId);
 
     // branchNo, financialYearId, createdBy are not changed on update
@@ -462,8 +522,8 @@ export const updateBranch = async (
       contactNumber: toText(body.contactNumber),
       phoneNumber: toText(body.phoneNumber),
       branchEmail: email,
-      branchManager: toText(body.branchManager),
-      areaManager: toText(body.areaManager),
+    branchManagerId,
+areaManagerId,
       openingDate: body.openingDate ? body.openingDate : null,
       workingHours: toText(body.workingHours),
       status: body.status || "Active",

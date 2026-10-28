@@ -103,6 +103,7 @@ const generateUniqueRegionTypeNo = async (
       tableName: "regiontype",
       idColumn: "regionTypeId",
       prefixFor: "REGION_TYPE",
+      numberColumn: "regionTypeNo",
     });
 
     // company hasn't saved a prefix -> fall back to "RT"

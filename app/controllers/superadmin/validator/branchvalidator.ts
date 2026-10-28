@@ -73,8 +73,14 @@ export const branchCreateSchema = Joi.object({
     "any.required": "Confirm password is required",
   }),
 
-  branchManager: optionalString(100),
-  areaManager: optionalString(100),
+ branchManagerId: Joi.alternatives()
+  .try(Joi.number().integer(), Joi.string().trim().allow(""))
+  .allow(null)
+  .optional(),
+areaManagerId: Joi.alternatives()
+  .try(Joi.number().integer(), Joi.string().trim().allow(""))
+  .allow(null)
+  .optional(),
   openingDate: optionalString(20),
   workingHours: optionalString(50),
 
