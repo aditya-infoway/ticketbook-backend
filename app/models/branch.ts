@@ -74,16 +74,8 @@ export default (sequelize: Sequelize) => {
     }, // bcrypt hash
 
     // Kept as strings until the employee dropdown is wired to real ids
-    branchManager: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      field: "branchManager",
-    },
-    areaManager: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      field: "areaManager",
-    },
+   branchManagerId: { type: DataTypes.INTEGER, allowNull: true },
+areaManagerId: { type: DataTypes.INTEGER, allowNull: true },
 
     openingDate: {
       type: DataTypes.DATEONLY,
