@@ -431,13 +431,10 @@ export const getRegionList = async (
     // Get Regions
     // ------------------------------------------
 
-    const rows: RegionRow[] = await selectWithJoins(
+    const rows = (await selectWithJoins(
       "region",
       [],
-      {
-        companyId,
-        delete: 0,
-      },
+      { companyId, delete: 0 },
       [
         "regionId",
         "financialYearId",
@@ -458,7 +455,7 @@ export const getRegionList = async (
         "updated",
       ],
       [["regionId", "DESC"]],
-    );
+    )) as unknown as RegionRow[];
 
     if (!rows.length) {
       return successResponse(res, [], "Regions fetched successfully.");
@@ -509,26 +506,26 @@ export const getRegionList = async (
       ),
     ];
 
-    const empMap: Record<string, string> = {};
+    // const empMap: Record<string, string> = {};
 
-    if (empIds.length) {
-      try {
-        const emps: any[] = await selectWithJoins(
-          "employee",
-          [],
-          {
-            employeeId: empIds,
-          },
-          ["employeeId", "employeeName"],
-        );
+    // if (empIds.length) {
+    //   try {
+    //     const emps: any[] = await selectWithJoins(
+    //       "employee",
+    //       [],
+    //       {
+    //         employeeId: empIds,
+    //       },
+    //       ["employeeId", "employeeName"],
+    //     );
 
-        emps.forEach((e) => {
-          empMap[String(e.employeeId)] = e.employeeName || "";
-        });
-      } catch (err) {
-        console.error("Error fetching employees:", err);
-      }
-    }
+    //     emps.forEach((e) => {
+    //       empMap[String(e.employeeId)] = e.employeeName || "";
+    //     });
+    //   } catch (err) {
+    //     console.error("Error fetching employees:", err);
+    //   }
+    // }
 
     // ------------------------------------------
     // Company Names
@@ -567,19 +564,10 @@ export const getRegionList = async (
     // ------------------------------------------
     // Who Created / Updated
     // ------------------------------------------
-
-    const who = (value: string | null, type?: string | null): string => {
-      if (!value) return "";
-
-      const key = String(value);
-
-      if (type === "Employee") {
-        return empMap[key] || key;
-      }
-
-      return companyMap[key] || empMap[key] || key;
-    };
-
+const who = (value: string | null): string => {
+  if (!value) return "";
+  return companyMap[String(value)] || String(value);
+};
     // ------------------------------------------
     // Final Data
     // ------------------------------------------
@@ -618,9 +606,8 @@ export const getRegionList = async (
 
         displayOrder: r.displayOrder,
 
-        createdBy: who(r.createdBy, r.createdtype),
-
-        updatedBy: who(r.updatedBy, r.createdtype),
+       createdBy: who(r.createdBy),
+updatedBy: who(r.updatedBy),
 
         created: r.created,
 
