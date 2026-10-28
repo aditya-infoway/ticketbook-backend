@@ -16,6 +16,7 @@ import definebranch from "./branch";
 import defineemployeetype from "./employeetype";
 import defineemployee from "./employee";
 import defineemployeedepartment from "./employeedepartment";
+import defineresolverteam from "./resolverteam";
 
 const sequelize = new Sequelize(
   dbConfig.DB as string,
@@ -47,6 +48,7 @@ db.role = definerole(sequelize);
 db.roledepartment = defineroledepartment(sequelize);
 db.employee = defineemployee(sequelize);
 db.employeedepartment = defineemployeedepartment(sequelize);
+db.resolverteam = defineresolverteam(sequelize);
 
 db.branch = definebranch(sequelize);
 db.employeetype = defineemployeetype(sequelize);

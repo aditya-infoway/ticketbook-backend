@@ -98,6 +98,7 @@ const generateUniqueEmployeeTypeNo = async (
       tableName: "employeetype",
       idColumn: "employeeTypeId",
       prefixFor: "EMPLOYEE_TYPE",
+      numberColumn: "employeeTypeNo",
     });
 
     const existing: any[] = await selectWithJoins(

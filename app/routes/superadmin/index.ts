@@ -10,6 +10,7 @@ import roleRoutes from "./role.routes";
 import branchRoutes from "./branch.routes";
 import employeetypeRoutes from "./employeetype.routes";
 import employeeRoutes from "./employee.routes";
+import resolverteamRoutes from "./resolverteam.routes";
 
 export default (app: Application): void => {
   superadminRoutes(app);
@@ -22,4 +23,5 @@ export default (app: Application): void => {
   branchRoutes(app);
   employeetypeRoutes(app);
   employeeRoutes(app);
+  resolverteamRoutes(app);
 };
