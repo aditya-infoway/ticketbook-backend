@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
+import jwt from "jsonwebtoken";
 
 import {
   errorResponse,
@@ -8,14 +8,51 @@ import {
   selectWithJoins,
   updateModel,
 } from "../../../helper/index";
-import { todayIST } from "../../../middleware/employeeToken";
+import { todayIST } from "../../../helper/dateHelper";
 
-// Same message for every credential failure (don't reveal which part was wrong)
+
 const INVALID = "Invalid email or password.";
 
-// TODO: replace the body with the SAME generator your superadmin login uses
-// (the frontend runs isTokenValid() on this token when the page is refreshed)
-const generateToken = (): string => crypto.randomBytes(32).toString("hex");
+
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 10);
+
+const generateToken = (payload: {
+  employeeId: number | string;
+  companyId: number | string;
+}): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET is not set");
+
+  return jwt.sign({ ...payload, role: "employee" }, secret, {
+    expiresIn: "12h",
+  });
+};
+
+
+const getCompanyFinancialYears = async (
+  companyId: number | string,
+  companyName: string,
+) => {
+  const years: any[] = await selectWithJoins(
+    "financialyear",
+    [],
+    { companyId, delete: 0 },
+    ["financialYearId", "companyDetailsId", "companyId", "startDate", "endDate"],
+  );
+
+  const day = (value: any) => String(value || "").slice(0, 10); // YYYY-MM-DD
+
+  return [...years]
+    .sort((a, b) => day(b.startDate).localeCompare(day(a.startDate)))
+    .map((y) => ({
+      financialYearId: y.financialYearId,
+      companyDetailsId: y.companyDetailsId,
+      companyId: y.companyId,
+      startDate: y.startDate,
+      endDate: y.endDate,
+      companyName,
+    }));
+};
 
 export const employeeLogin = async (
   req: Request,
@@ -51,6 +88,7 @@ export const employeeLogin = async (
 
     // no such employee, or no login password set yet
     if (!employee || !employee.password) {
+      await bcrypt.compare(password, DUMMY_HASH);
       return errorResponse(res, INVALID);
     }
 
@@ -99,8 +137,23 @@ export const employeeLogin = async (
       }
     }
 
+    const financialYears = await getCompanyFinancialYears(
+      employee.companyId,
+      company.companyName,
+    );
+
+    if (financialYears.length === 0) {
+      return errorResponse(
+        res,
+        "No financial year found for your company. Please contact the administrator.",
+      );
+    }
+
     // New login replaces the old token (one active session per employee)
-    const token = generateToken();
+    const token = generateToken({
+      employeeId: employee.employeeId,
+      companyId: employee.companyId,
+    });
 
     await updateModel(
       "employee",
@@ -128,6 +181,7 @@ export const employeeLogin = async (
         employeeName: employee.employeeName,
         companyId: employee.companyId,
         companyName: company.companyName,
+        financialYears, // list for the Select Company page
         roleName,
       },
       "Login successful.",

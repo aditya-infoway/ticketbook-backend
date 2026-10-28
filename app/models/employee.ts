@@ -55,7 +55,7 @@ export default (sequelize: Sequelize) => {
     }, // bcrypt hash
 
     // Login session (same idea as company.token / tokenDate)
-    token: { type: DataTypes.STRING(100), allowNull: true, field: "token" },
+   token: { type: DataTypes.TEXT, allowNull: true, field: "token" },
     tokenDate: {
       type: DataTypes.STRING(10),
       allowNull: true,

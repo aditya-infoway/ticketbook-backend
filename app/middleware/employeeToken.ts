@@ -1,10 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
 
 import { selectWithJoins } from "../helper/index";
+import { getDateString, todayIST } from "../helper/dateHelper";
 
-// YYYY-MM-DD in IST (token is valid only on the day it was created)
-export const todayIST = (): string =>
-  new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+// purane imports (employeeauthcontroller.ts) na tootein, isliye re-export
+export { getDateString, todayIST };
 
 export const checkEmployeeToken = async (token: string) => {
   return await selectWithJoins(
@@ -30,15 +30,14 @@ export const employeeAuth = async (
         message: "Authentication failed! Token missing.",
       });
     }
+const rows: any[] = await checkEmployeeToken(token);
 
-    const rows: any[] = await checkEmployeeToken(token);
-
-    if (!rows.length || rows[0].tokenDate !== todayIST()) {
-      return res.status(401).json({
-        status: 401,
-        message: "Invalid or expired session. Please login again.",
-      });
-    }
+if (!rows.length || rows[0].tokenDate !== todayIST()) {
+  return res.status(401).json({
+    status: 401,
+    message: "Invalid or expired session. Please login again.",
+  });
+}
 
     (req as any).employeeId = rows[0].employeeId;
     (req as any).companyId = rows[0].companyId;

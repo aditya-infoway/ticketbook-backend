@@ -72,10 +72,16 @@ export default (sequelize: Sequelize) => {
       allowNull: false,
       field: "password",
     }, // bcrypt hash
-
+    // Session token (JWT). TEXT, kyunki JWT 100 chars se lamba hota hai
+    token: { type: DataTypes.TEXT, allowNull: true, field: "token" },
+    tokenDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: "tokenDate",
+    },
     // Kept as strings until the employee dropdown is wired to real ids
-   branchManagerId: { type: DataTypes.INTEGER, allowNull: true },
-areaManagerId: { type: DataTypes.INTEGER, allowNull: true },
+    branchManagerId: { type: DataTypes.INTEGER, allowNull: true },
+    areaManagerId: { type: DataTypes.INTEGER, allowNull: true },
 
     openingDate: {
       type: DataTypes.DATEONLY,
