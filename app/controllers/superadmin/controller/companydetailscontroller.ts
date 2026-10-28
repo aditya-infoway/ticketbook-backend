@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as fs from "fs";
 import * as path from "path";
-
+import "multer";
 import {
   errorResponse,
   successResponse,
@@ -133,7 +133,9 @@ export const createCompanyDetails = async (
     const companyDetailsPayload = {
       companyId,
       companyName,
-      companyCode: String(companyCode || "").trim().toUpperCase(),
+      companyCode: String(companyCode || "")
+        .trim()
+        .toUpperCase(),
       natureOfBusiness,
       taxSystem,
       addressLine1,
@@ -402,7 +404,9 @@ export const updateCompanyDetails = async (
 
     const updatePayload: Record<string, any> = {
       companyName,
-      companyCode: String(companyCode || "").trim().toUpperCase(),
+      companyCode: String(companyCode || "")
+        .trim()
+        .toUpperCase(),
       natureOfBusiness,
       taxSystem,
       addressLine1,
