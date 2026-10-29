@@ -40,7 +40,13 @@ export const employeeCreateSchema = Joi.object({
   officialEmail: Joi.string().trim().email().max(150).allow("", null).messages({
     "string.email": "Enter a valid official email",
   }),
-
+  branchId: Joi.alternatives()
+    .try(Joi.number().integer(), Joi.string().trim().min(1))
+    .required()
+    .messages({
+      "any.required": "Branch is required",
+      "alternatives.match": "Branch is required",
+    }),
   mobileCountryCode: optionalString(10),
   mobileNumber: optionalPhone,
   alternateCountryCode: optionalString(10),

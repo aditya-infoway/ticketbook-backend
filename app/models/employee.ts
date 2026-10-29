@@ -41,7 +41,7 @@ export default (sequelize: Sequelize) => {
       allowNull: true,
       field: "profilePhoto",
     },
-
+    branchId: { type: DataTypes.INTEGER, allowNull: true, field: "branchId" },
     // Login id (unique when present) + hashed password
     officialEmail: {
       type: DataTypes.STRING(150),

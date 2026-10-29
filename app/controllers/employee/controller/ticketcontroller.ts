@@ -30,7 +30,6 @@ const removeUploaded = (file?: Express.Multer.File) => {
   if (file?.path) fs.unlink(file.path, () => {});
 };
 
-// employeeAuth has already set req.employeeId and req.companyId
 const getEmployeeContext = async (req: Request) => {
   const employeeId = Number((req as any).employeeId);
   const companyId = Number((req as any).companyId);
@@ -45,6 +44,7 @@ const getEmployeeContext = async (req: Request) => {
       "employeeName",
       "mobileCountryCode",
       "mobileNumber",
+      "branchId", // <-- add
     ],
   );
 
@@ -52,13 +52,25 @@ const getEmployeeContext = async (req: Request) => {
 
   const e = rows[0];
 
+  // Branch name lookup
+  let branchName = "";
+  if (e.branchId) {
+    const branchRows: any[] = await selectWithJoins(
+      "branch",
+      [],
+      { branchId: e.branchId, companyId, delete: 0 },
+      ["branchId", "branchName"],
+    );
+    branchName = branchRows[0]?.branchName || "";
+  }
+
   return {
     employeeId,
     companyId,
     employeeName: e.employeeName as string,
     employeeCode: e.employeeCode as string,
-    branchId: null, // no branch on employee table
-    branchName: "",
+    branchId: e.branchId ? Number(e.branchId) : null,
+    branchName,
     contactNumber:
       `${e.mobileCountryCode || ""} ${e.mobileNumber || ""}`.trim(),
   };
@@ -331,7 +343,7 @@ export const createTicket = async (
       ticketNo,
       ticketCode,
       employeeId: ctx.employeeId,
-      branchId: null, // or just remove the line if the model allows null
+          branchId: ctx.branchId,
       departmentId: value.departmentId,
       ticketCategoryId: value.categoryId,
       subject: value.subject,
@@ -411,10 +423,11 @@ export const getTicketList = async (
       return map;
     };
 
-    const [deptMap, catMap, statusMap] = await Promise.all([
+    const [deptMap, catMap, statusMap,branchMap] = await Promise.all([
       mapOf("department", "departmentId", "departmentName"),
       mapOf("ticketcategory", "ticketCategoryId", "categoryName"),
       mapOf("ticketstatus", "ticketStatusId", "statusName"),
+        mapOf("branch", "branchId", "branchName"),
     ]);
 
     const search = (q.search || "").trim().toLowerCase();
@@ -454,9 +467,10 @@ export const getTicketList = async (
         ticketNo: r.ticketNo || "",
         ticketNumber: r.ticketCode || r.ticketNo || "",
         employeeId: String(employeeId),
+        
         employeeName: ctx.employeeName,
         employeeCode: ctx.employeeCode,
-        branchName: ctx.branchName,
+             branchName: branchMap[String(r.branchId)] || ctx.branchName,
         departmentId: String(r.departmentId),
         departmentName: deptMap[String(r.departmentId)] || "",
         categoryId: String(r.ticketCategoryId),
