@@ -4,7 +4,9 @@ import { errorResponse } from "../../helper/index";
 import * as profile from "../../controllers/branch/controllers/branchprofilecontroller";
 import { branchProfileUpdateSchema } from "../../controllers/branch/validator/branchprofilevalidator";
 import { branchAuth } from "../../middleware/branchToken"; // <- apna asli naam
+import { createUploader } from "../../middleware/upload";
 
+const photoUpload = createUploader("branch_photo");
 const routes = Router();
 
 const validate = (schema: any) => {
@@ -21,7 +23,12 @@ const validate = (schema: any) => {
 routes.use(branchAuth);
 
 routes.get("/profile", profile.getMyBranchProfile);
-routes.post("/profile/update", validate(branchProfileUpdateSchema), profile.updateMyBranchProfile);
+routes.post(
+  "/profile/update",
+  photoUpload.single("profilePhoto"),
+  validate(branchProfileUpdateSchema),
+  profile.updateMyBranchProfile,
+);
 
 export default (app: Application): void => {
   app.use("/branch", routes);

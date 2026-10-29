@@ -15,11 +15,12 @@ import { generateVoucherNo } from "../../../helper/billNoGenerator";
 type Id = string | number;
 
 interface ResolverTeamBody {
-  resolverTeamId?: Id;
+ resolverTeamId?: Id;
   financialYearId?: Id;
+  teamCode: string;
   teamName: string;
   teamDescription?: string | null;
-  departmentId: Id;
+  departmentIds: number[]; 
   teamLeaderId?: Id | null;
   teamMemberIds?: number[];
   coverageType: string;
@@ -36,7 +37,7 @@ interface Creator {
 }
 
 interface Links {
-  departmentId: number;
+  departmentIds: number[];  
   teamLeaderId: number | null;
   memberIds: number[];
   coverageType: string;
@@ -46,7 +47,7 @@ interface Links {
 
 // What the team already had (inactive records are only rejected when newly picked)
 interface Existing {
-  departmentId?: number | null;
+  departmentIds: number[];  
   teamLeaderId?: number | null;
   regionId?: number | null;
   memberIds: number[];
@@ -129,7 +130,27 @@ const isNameTaken = async (
       String(row.resolverTeamId) !== String(excludeId ?? ""),
   );
 };
+// Team Code must be unique inside a company (case-insensitive)
+const isCodeTaken = async (
+  companyId: Id,
+  code: string,
+  excludeId?: Id,
+): Promise<boolean> => {
+  const rows: any[] = await selectWithJoins(
+    "resolverteam",
+    [],
+    { companyId, delete: 0 },
+    ["resolverTeamId", "teamCode"],
+  );
 
+  const wanted = code.trim().toLowerCase();
+
+  return rows.some(
+    (row) =>
+      String(row.teamCode || "").trim().toLowerCase() === wanted &&
+      String(row.resolverTeamId) !== String(excludeId ?? ""),
+  );
+};
 // Department / leader / members / region / branches must exist in this company.
 const validateLinks = async (
   companyId: Id,
@@ -137,19 +158,26 @@ const validateLinks = async (
   existing?: Existing,
 ): Promise<string | null> => {
   // Department
-  const deptRows: any[] = await selectWithJoins(
-    "department",
-    [],
-    { departmentId: links.departmentId, companyId, delete: 0 },
-    ["departmentId", "status"],
-  );
-  if (!deptRows.length) return "Selected department was not found.";
-  if (
-    Number(existing?.departmentId) !== links.departmentId &&
-    deptRows[0].status !== "Active"
-  ) {
-    return "Selected department is inactive.";
-  }
+// Departments
+if (!links.departmentIds.length) {
+  return "At least one department is required.";
+}
+
+const deptRows: any[] = await selectWithJoins(
+  "department",
+  [],
+  { departmentId: links.departmentIds, companyId, delete: 0 },
+  ["departmentId", "status"],
+);
+if (deptRows.length !== links.departmentIds.length) {
+  return "One or more selected departments were not found.";
+}
+const inactiveDept = deptRows.find(
+  (d) =>
+    d.status !== "Active" &&
+    !(existing?.departmentIds || []).includes(Number(d.departmentId)),
+);
+if (inactiveDept) return "An inactive department cannot be added to a team.";
 
   // Team leader
   if (links.teamLeaderId) {
@@ -247,7 +275,7 @@ const normalizeLinks = (body: ResolverTeamBody): Links => {
   const specific = body.coverageType === "Specific";
 
   return {
-    departmentId: Number(body.departmentId),
+  departmentIds: toIds(body.departmentIds),   // departmentId: Number(body.departmentId) ki jagah
     teamLeaderId: toNumberOrNull(body.teamLeaderId),
     memberIds: toIds(body.teamMemberIds),
     coverageType: body.coverageType,
@@ -362,7 +390,9 @@ export const createResolverTeam = async (
     if (await isNameTaken(companyId, body.teamName)) {
       return requiredmessage(res, "Team name already exists.");
     }
-
+if (await isCodeTaken(companyId, body.teamCode)) {
+  return requiredmessage(res, "Team code already exists.");
+}
     const links = normalizeLinks(body);
 
     const linkError = await validateLinks(companyId, links);
@@ -385,9 +415,10 @@ export const createResolverTeam = async (
       companyId,
       financialYearId: fy.financialYearId,
       resolverTeamNo,
+        teamCode: toText(body.teamCode), 
       teamName: toText(body.teamName),
       teamDescription: toText(body.teamDescription),
-      departmentId: links.departmentId,
+    departmentIds: idsToText(links.departmentIds),
       teamLeaderId: links.teamLeaderId,
       coverageType: links.coverageType,
       regionId: links.regionId,
@@ -441,7 +472,9 @@ export const getResolverTeamList = async (
         "resolverTeamNo",
         "teamName",
         "teamDescription",
+       "teamCode",
         "departmentId",
+        "departmentIds",
         "teamLeaderId",
         "coverageType",
         "regionId",
@@ -516,16 +549,27 @@ export const getResolverTeamList = async (
       const branchIds = textToIds(r.assignedBranchIds).filter(
         (id) => branchMap[String(id)],
       );
-
+  const savedDeptIds = textToIds(r.departmentIds);
+  const departmentIds = (
+    savedDeptIds.length
+      ? savedDeptIds
+      : r.departmentId
+        ? [Number(r.departmentId)]
+        : []
+  ).filter((id) => deptMap[String(id)]);
       return {
         id: String(r.resolverTeamId),
         resolverTeamId: r.resolverTeamId,
         financialYearId: r.financialYearId,
         resolverTeamNo: r.resolverTeamNo || "",
+        teamCode: r.teamCode || "",
         teamName: r.teamName,
         teamDescription: r.teamDescription || "",
-        departmentId: r.departmentId,
-        departmentName: deptMap[String(r.departmentId)] || "",
+     departmentIds,
+    departmentNames: departmentIds.map((id) => deptMap[String(id)] || ""),
+    departmentName: departmentIds
+      .map((id) => deptMap[String(id)] || "")
+      .join(", "),
         teamLeaderId: r.teamLeaderId,
         teamLeaderName: r.teamLeaderId
           ? employeeMap[String(r.teamLeaderId)] || ""
@@ -577,6 +621,7 @@ export const updateResolverTeam = async (
       [
         "resolverTeamId",
         "departmentId",
+        "departmentIds",
         "teamLeaderId",
         "regionId",
         "teamMemberIds",
@@ -591,10 +636,22 @@ export const updateResolverTeam = async (
       return requiredmessage(res, "Team name already exists.");
     }
 
+    if (await isCodeTaken(companyId, body.teamCode, resolverTeamId)) {
+      return requiredmessage(res, "Team code already exists.");
+    }
+
     const links = normalizeLinks(body);
 
+    // naye records: departmentIds, purane records: legacy departmentId fallback
+    const savedDeptIds = textToIds(existingRows[0].departmentIds);
+    const existingDeptIds = savedDeptIds.length
+      ? savedDeptIds
+      : existingRows[0].departmentId
+        ? [Number(existingRows[0].departmentId)]
+        : [];
+
     const linkError = await validateLinks(companyId, links, {
-      departmentId: existingRows[0].departmentId,
+      departmentIds: existingDeptIds,
       teamLeaderId: existingRows[0].teamLeaderId,
       regionId: existingRows[0].regionId,
       memberIds: textToIds(existingRows[0].teamMemberIds),
@@ -608,9 +665,10 @@ export const updateResolverTeam = async (
     await updateModel(
       "resolverteam",
       {
+        teamCode: toText(body.teamCode),
         teamName: toText(body.teamName),
         teamDescription: toText(body.teamDescription),
-        departmentId: links.departmentId,
+        departmentIds: idsToText(links.departmentIds),
         teamLeaderId: links.teamLeaderId,
         coverageType: links.coverageType,
         regionId: links.regionId,
