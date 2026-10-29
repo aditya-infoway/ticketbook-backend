@@ -18,14 +18,21 @@ export const resolverTeamCreateSchema = Joi.object({
   teamDescription: Joi.string().trim().max(500).allow("", null).messages({
     "string.max": "Description must be at most 500 characters",
   }),
+teamCode: Joi.string().trim().max(50).required().messages({
+  "string.empty": "Team code is required",
+  "any.required": "Team code is required",
+  "string.max": "Team code must be at most 50 characters",
+}),
 
-  departmentId: Joi.alternatives()
-    .try(Joi.number().integer(), Joi.string().trim())
-    .required()
-    .messages({
-      "any.required": "Department is required",
-      "alternatives.match": "Department is required",
-    }),
+departmentIds: Joi.array()
+  .items(Joi.number().integer())
+  .min(1)
+  .required()
+  .messages({
+    "array.min": "At least one department is required",
+    "any.required": "At least one department is required",
+  }),
+ 
   teamLeaderId: optionalId,
 
   teamMemberIds: Joi.array()

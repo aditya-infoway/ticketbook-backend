@@ -17,6 +17,9 @@ import defineemployeetype from "./employeetype";
 import defineemployee from "./employee";
 import defineemployeedepartment from "./employeedepartment";
 import defineresolverteam from "./resolverteam";
+import defineticketcategory from "./ticketcategory";
+import defineticketstatus from "./ticketstatus";
+import defineticket from "./ticket";
 
 const sequelize = new Sequelize(
   dbConfig.DB as string,
@@ -49,6 +52,9 @@ db.roledepartment = defineroledepartment(sequelize);
 db.employee = defineemployee(sequelize);
 db.employeedepartment = defineemployeedepartment(sequelize);
 db.resolverteam = defineresolverteam(sequelize);
+db.ticketcategory = defineticketcategory(sequelize);
+db.ticketstatus = defineticketstatus(sequelize);
+db.ticket = defineticket(sequelize);
 
 db.branch = definebranch(sequelize);
 db.employeetype = defineemployeetype(sequelize);

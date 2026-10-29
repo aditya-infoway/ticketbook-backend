@@ -37,6 +37,7 @@ interface EmployeeBody {
   remarks?: string | null;
   roleCategoryId?: Id | null;
   roleId?: Id | null;
+    branchId?: Id | null;
   additionalDepartments?: number[] | string | null;
   password?: string | null;
   confirmPassword?: string | null;
@@ -51,6 +52,7 @@ interface Links {
   employeeTypeId: number | null;
   roleCategoryId: number | null;
   roleId: number | null;
+    branchId: number | null;
   departmentIds: number[];
 }
 
@@ -223,7 +225,21 @@ const validateLinks = async (
       return "Selected role is inactive.";
     }
   }
+  if (links.branchId) {
+    const rows: any[] = await selectWithJoins(
+      "branch",
+      [],
+      { branchId: links.branchId, companyId, delete: 0 },
+      ["branchId", "status"],
+    );
 
+    if (!rows.length) return "Selected branch was not found.";
+
+    const changed = !existing || Number(existing.branchId) !== links.branchId;
+    if (changed && rows[0].status !== "Active") {
+      return "Selected branch is inactive.";
+    }
+  }
   if (links.departmentIds.length) {
     const rows: any[] = await selectWithJoins(
       "department",
@@ -398,6 +414,7 @@ export const createEmployee = async (
       employeeTypeId: toNumberOrNull(body.employeeTypeId),
       roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
+            branchId: toNumberOrNull(body.branchId),
       departmentIds: parseIds(body.additionalDepartments),
     };
 
@@ -441,6 +458,7 @@ export const createEmployee = async (
       remarks: toText(body.remarks),
       roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
+          branchId: links.branchId,
       createdBy: creator.by,
       createdType: creator.type,
       delete: 0,
@@ -506,6 +524,7 @@ export const getEmployeeList = async (
         "remarks",
         "roleCategoryId",
         "roleId",
+                "branchId",
         "createdBy",
         "createdType",
         "updatedBy",
@@ -620,6 +639,7 @@ export const getEmployeeList = async (
           ? categoryMap[String(r.roleCategoryId)] || ""
           : "",
         roleId: r.roleId,
+             branchId: r.branchId,
         roleName: role?.name || "",
         roleDataScope: role?.scope || "",
         additionalDepartments: deptIds,
@@ -666,6 +686,7 @@ export const updateEmployee = async (
         "employeeTypeId",
         "roleCategoryId",
         "roleId",
+                "branchId",
         "profilePhoto",
       ],
     );
@@ -701,6 +722,7 @@ export const updateEmployee = async (
       employeeTypeId: toNumberOrNull(body.employeeTypeId),
       roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
+            branchId: toNumberOrNull(body.branchId),
       departmentIds: parseIds(body.additionalDepartments),
     };
 
@@ -726,6 +748,7 @@ export const updateEmployee = async (
       remarks: toText(body.remarks),
       roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
+          branchId: links.branchId,
       updatedBy: creator.by,
       updated: new Date(),
     };
