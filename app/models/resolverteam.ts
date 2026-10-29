@@ -25,6 +25,7 @@ export default (sequelize: Sequelize) => {
       allowNull: true,
       field: "resolverTeamNo",
     },
+    
     teamName: {
       type: DataTypes.STRING(150),
       allowNull: false,
@@ -36,11 +37,23 @@ export default (sequelize: Sequelize) => {
       field: "teamDescription",
     },
 
-    departmentId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      field: "departmentId",
-    },
+    teamCode: {
+  type: DataTypes.STRING(50),
+  allowNull: true, // purane records ke liye null chalega
+  field: "teamCode",
+},
+
+// purana single department: ab sirf legacy, naya code ise use nahi karega
+departmentId: {
+  type: DataTypes.INTEGER,
+  allowNull: true, // pehle false tha
+  field: "departmentId",
+},
+departmentIds: {
+  type: DataTypes.TEXT,
+  allowNull: true,
+  field: "departmentIds",
+},
     teamLeaderId: {
       type: DataTypes.INTEGER,
       allowNull: true,

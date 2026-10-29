@@ -36,7 +36,11 @@ export default (sequelize: Sequelize) => {
       allowNull: false,
       field: "branchName",
     },
-
+    profilePhoto: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      field: "profilePhoto",
+    },
     // Region / Area comes from the region table
     regionId: { type: DataTypes.INTEGER, allowNull: true, field: "regionId" },
 

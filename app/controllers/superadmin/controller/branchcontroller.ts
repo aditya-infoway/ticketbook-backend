@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
+import * as fs from "fs";
+import * as path from "path";
+import "multer";
 
 import {
   errorResponse,
@@ -8,6 +11,7 @@ import {
   saveModel,
   updateModel,
   selectWithJoins,
+  getBlobTempPublicUrl,
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
 import { generateVoucherNo } from "../../../helper/billNoGenerator";
@@ -31,8 +35,8 @@ interface BranchBody {
   branchEmail: string;
   password?: string | null;
   confirmPassword?: string | null;
-branchManagerId?: Id | null;
-areaManagerId?: Id | null;
+  branchManagerId?: Id | null;
+  areaManagerId?: Id | null;
   openingDate?: string | null;
   workingHours?: string | null;
   status?: string;
@@ -86,6 +90,14 @@ const getCreator = (req: Request, companyId: Id): Creator => {
     by: employeeId ? String(employeeId) : String(companyId),
     type: employeeId ? "Employee" : "Super Admin",
   };
+};
+
+// Purani photo disk se hatao (naya upload hone par)
+const removeOldFile = (oldFile?: string | null): void => {
+  if (!oldFile) return;
+  fs.unlink(path.join("./Uploadimages", oldFile), (err) => {
+    if (err) console.log("Old file delete failed:", err.message);
+  });
 };
 
 // Branch Code must be unique inside a company
@@ -142,6 +154,7 @@ const validateRegion = async (
   return rows.length ? null : "Selected region / area was not found.";
 };
 
+// Manager active employee ho aur uska role sahi ho
 const checkManager = async (
   companyId: Id,
   employeeId: number | null,
@@ -174,6 +187,7 @@ const checkManager = async (
   }
   return null;
 };
+
 // Unique Branch No (prefix + FY + running number), retry on collision
 const generateUniqueBranchNo = async (
   companyId: number,
@@ -286,13 +300,14 @@ export const createBranch = async (
     const regionError = await validateRegion(companyId, regionId);
     if (regionError) return errorResponse(res, regionError);
 
-const branchManagerId = toNumberOrNull(body.branchManagerId);
-const areaManagerId = toNumberOrNull(body.areaManagerId);
+    const branchManagerId = toNumberOrNull(body.branchManagerId);
+    const areaManagerId = toNumberOrNull(body.areaManagerId);
 
-const managerError =
-  (await checkManager(companyId, branchManagerId, "Branch Manager")) ||
-  (await checkManager(companyId, areaManagerId, "Area Manager"));
-if (managerError) return errorResponse(res, managerError);
+    const managerError =
+      (await checkManager(companyId, branchManagerId, "Branch Manager")) ||
+      (await checkManager(companyId, areaManagerId, "Area Manager"));
+    if (managerError) return errorResponse(res, managerError);
+
     const branchNo = await generateUniqueBranchNo(
       Number(companyId),
       fy.financialYearId,
@@ -306,6 +321,7 @@ if (managerError) return errorResponse(res, managerError);
 
     const creator = getCreator(req, companyId);
     const passwordHash = await bcrypt.hash(String(body.password), 10);
+    const photoFile = (req as any).file as Express.Multer.File | undefined;
 
     const saved: any = await saveModel("branch", {
       companyId,
@@ -313,6 +329,7 @@ if (managerError) return errorResponse(res, managerError);
       branchNo,
       branchCode: code,
       branchName: toText(body.branchName),
+      profilePhoto: photoFile ? "branch_photo/" + photoFile.filename : "",
       regionId,
       country: toText(body.country),
       state: toText(body.state),
@@ -323,8 +340,8 @@ if (managerError) return errorResponse(res, managerError);
       phoneNumber: toText(body.phoneNumber),
       branchEmail: email,
       password: passwordHash,
- branchManagerId,
-areaManagerId,
+      branchManagerId,
+      areaManagerId,
       openingDate: body.openingDate ? body.openingDate : null,
       workingHours: toText(body.workingHours),
       status: body.status || "Active",
@@ -373,6 +390,7 @@ export const getBranchList = async (
         "branchNo",
         "branchCode",
         "branchName",
+        "profilePhoto",
         "regionId",
         "country",
         "state",
@@ -382,7 +400,7 @@ export const getBranchList = async (
         "contactNumber",
         "phoneNumber",
         "branchEmail",
-       "branchManagerId",
+        "branchManagerId",
         "areaManagerId",
         "openingDate",
         "workingHours",
@@ -412,16 +430,19 @@ export const getBranchList = async (
     regionRows.forEach((r) => {
       regionMap[String(r.regionId)] = r.regionName || "";
     });
-const empRows: any[] = await selectWithJoins(
-  "employee",
-  [],
-  { companyId, delete: 0 },
-  ["employeeId", "employeeName"],
-);
-const empMap: Record<string, string> = {};
-empRows.forEach((e) => {
-  empMap[String(e.employeeId)] = e.employeeName;
-});
+
+    // Manager names
+    const empRows: any[] = await selectWithJoins(
+      "employee",
+      [],
+      { companyId, delete: 0 },
+      ["employeeId", "employeeName"],
+    );
+    const empMap: Record<string, string> = {};
+    empRows.forEach((e) => {
+      empMap[String(e.employeeId)] = e.employeeName;
+    });
+
     const data = rows.map((r) => ({
       id: String(r.branchId),
       branchId: r.branchId,
@@ -429,6 +450,7 @@ empRows.forEach((e) => {
       branchNo: r.branchNo || "",
       branchCode: r.branchCode,
       branchName: r.branchName,
+      profilePhoto: r.profilePhoto ? getBlobTempPublicUrl(r.profilePhoto) : "",
       regionId: r.regionId,
       region: r.regionId ? regionMap[String(r.regionId)] || "" : "",
       country: r.country || "",
@@ -439,10 +461,14 @@ empRows.forEach((e) => {
       contactNumber: r.contactNumber || "",
       phoneNumber: r.phoneNumber || "",
       branchEmail: r.branchEmail,
-    branchManagerId: r.branchManagerId ?? null,
-areaManagerId: r.areaManagerId ?? null,
-branchManager: r.branchManagerId ? empMap[String(r.branchManagerId)] || "" : "",
-areaManager: r.areaManagerId ? empMap[String(r.areaManagerId)] || "" : "",
+      branchManagerId: r.branchManagerId ?? null,
+      areaManagerId: r.areaManagerId ?? null,
+      branchManager: r.branchManagerId
+        ? empMap[String(r.branchManagerId)] || ""
+        : "",
+      areaManager: r.areaManagerId
+        ? empMap[String(r.areaManagerId)] || ""
+        : "",
       openingDate: r.openingDate || "",
       workingHours: r.workingHours || "",
       status: r.status,
@@ -473,14 +499,15 @@ export const updateBranch = async (
     }
 
     const body = req.body as BranchBody;
-    const { branchId } = body;
+    // multipart me sab string aata hai, isliye Number() kiya
+    const branchId = Number(body.branchId);
 
-   const existing: any[] = await selectWithJoins(
-  "branch",
-  [],
-  { branchId, companyId, delete: 0 },
-  ["branchId", "branchManagerId", "areaManagerId"],
-);
+    const existing: any[] = await selectWithJoins(
+      "branch",
+      [],
+      { branchId, companyId, delete: 0 },
+      ["branchId", "branchManagerId", "areaManagerId", "profilePhoto"],
+    );
     if (!existing.length) return requiredmessage(res, "Branch not found.");
 
     const code = normalizeCode(body.branchCode);
@@ -496,17 +523,19 @@ export const updateBranch = async (
     const regionId = toNumberOrNull(body.regionId);
     const regionError = await validateRegion(companyId, regionId);
     if (regionError) return errorResponse(res, regionError);
-const branchManagerId = toNumberOrNull(body.branchManagerId);
-const areaManagerId = toNumberOrNull(body.areaManagerId);
 
-const managerError =
-  (branchManagerId !== (existing[0].branchManagerId ?? null)
-    ? await checkManager(companyId, branchManagerId, "Branch Manager")
-    : null) ||
-  (areaManagerId !== (existing[0].areaManagerId ?? null)
-    ? await checkManager(companyId, areaManagerId, "Area Manager")
-    : null);
-if (managerError) return errorResponse(res, managerError);
+    const branchManagerId = toNumberOrNull(body.branchManagerId);
+    const areaManagerId = toNumberOrNull(body.areaManagerId);
+
+    const managerError =
+      (branchManagerId !== (existing[0].branchManagerId ?? null)
+        ? await checkManager(companyId, branchManagerId, "Branch Manager")
+        : null) ||
+      (areaManagerId !== (existing[0].areaManagerId ?? null)
+        ? await checkManager(companyId, areaManagerId, "Area Manager")
+        : null);
+    if (managerError) return errorResponse(res, managerError);
+
     const creator = getCreator(req, companyId);
 
     // branchNo, financialYearId, createdBy are not changed on update
@@ -522,14 +551,21 @@ if (managerError) return errorResponse(res, managerError);
       contactNumber: toText(body.contactNumber),
       phoneNumber: toText(body.phoneNumber),
       branchEmail: email,
-    branchManagerId,
-areaManagerId,
+      branchManagerId,
+      areaManagerId,
       openingDate: body.openingDate ? body.openingDate : null,
       workingHours: toText(body.workingHours),
       status: body.status || "Active",
       updatedBy: creator.by,
       updated: new Date(),
     };
+
+    // Photo tabhi badlo jab nayi bheji ho (warna purani waise hi rahegi)
+    const photoFile = (req as any).file as Express.Multer.File | undefined;
+    if (photoFile) {
+      updatePayload.profilePhoto = "branch_photo/" + photoFile.filename;
+      removeOldFile(existing[0].profilePhoto);
+    }
 
     // Only change the password when a new one was typed
     if (body.password) {

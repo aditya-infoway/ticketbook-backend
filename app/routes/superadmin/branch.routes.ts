@@ -7,7 +7,9 @@ import {
   branchUpdateSchema,
 } from "../../controllers/superadmin/validator/branchvalidator";
 import { checktoken } from "../../middleware/token";
+import { createUploader } from "../../middleware/upload";
 
+const photoUpload = createUploader("branch_photo");
 const routes = Router();
 
 const validate = (schema: any) => {
@@ -31,8 +33,18 @@ routes.use(checktoken);
 // ---- Branch ----
 routes.get("/next-number", branch.getNextBranchNo);
 routes.get("/list", branch.getBranchList);
-routes.post("/create", validate(branchCreateSchema), branch.createBranch);
-routes.put("/update", validate(branchUpdateSchema), branch.updateBranch);
+routes.post(
+  "/create",
+  photoUpload.single("profilePhoto"),
+  validate(branchCreateSchema),
+  branch.createBranch,
+);
+routes.put(
+  "/update",
+  photoUpload.single("profilePhoto"),
+  validate(branchUpdateSchema),
+  branch.updateBranch,
+);
 routes.delete("/delete", branch.deleteBranch);
 
 export default (app: Application): void => {
