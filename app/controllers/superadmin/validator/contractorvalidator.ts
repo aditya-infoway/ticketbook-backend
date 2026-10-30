@@ -42,7 +42,11 @@ export const contractorCreateSchema = Joi.object({
 
   areaId: requiredId("Area"),
   branchId: requiredId("Branch"),
-
+  contractorDepartmentId: Joi.number()
+    .integer()
+    .positive()
+    .allow("", null)
+    .optional(),
   status: Joi.string().valid("Active", "Inactive").required().messages({
     "any.only": "Status must be Active or Inactive",
     "any.required": "Status is required",
