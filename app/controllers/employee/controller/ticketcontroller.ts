@@ -6,6 +6,7 @@ import {
   successResponse,
   requiredmessage,
   saveModel,
+  updateModel,
   selectWithJoins,
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
@@ -28,6 +29,24 @@ const istDateTime = (value: unknown): string => {
 
 const removeUploaded = (file?: Express.Multer.File) => {
   if (file?.path) fs.unlink(file.path, () => {});
+};
+
+// Only tickets in these statuses (lower-case names) can still be edited by the employee
+const EDITABLE_STATUSES = ["open"];
+
+// Delete a stored attachment, but only inside the ticket upload folder
+const removeStoredFile = (storedPath?: string | null) => {
+  if (!storedPath) return;
+  const normalized = String(storedPath).replace(/\\/g, "/");
+  if (!normalized.includes("Uploadimages/ticket/")) return;
+  fs.unlink(normalized, () => {});
+};
+
+// Full public URL for a stored upload, e.g. http://localhost:8001/Uploadimages/ticket/x.jpg
+const toPublicUrl = (req: Request, storedPath?: string | null): string => {
+  if (!storedPath) return "";
+  const clean = String(storedPath).replace(/\\/g, "/").replace(/^\/+/, "");
+  return `${req.protocol}://${req.get("host")}/${clean}`;
 };
 
 const getEmployeeContext = async (req: Request) => {
@@ -343,7 +362,7 @@ export const createTicket = async (
       ticketNo,
       ticketCode,
       employeeId: ctx.employeeId,
-          branchId: ctx.branchId,
+      branchId: ctx.branchId,
       departmentId: value.departmentId,
       ticketCategoryId: value.categoryId,
       subject: value.subject,
@@ -423,11 +442,11 @@ export const getTicketList = async (
       return map;
     };
 
-    const [deptMap, catMap, statusMap,branchMap] = await Promise.all([
+    const [deptMap, catMap, statusMap, branchMap] = await Promise.all([
       mapOf("department", "departmentId", "departmentName"),
       mapOf("ticketcategory", "ticketCategoryId", "categoryName"),
       mapOf("ticketstatus", "ticketStatusId", "statusName"),
-        mapOf("branch", "branchId", "branchName"),
+      mapOf("branch", "branchId", "branchName"),
     ]);
 
     const search = (q.search || "").trim().toLowerCase();
@@ -467,10 +486,10 @@ export const getTicketList = async (
         ticketNo: r.ticketNo || "",
         ticketNumber: r.ticketCode || r.ticketNo || "",
         employeeId: String(employeeId),
-        
+
         employeeName: ctx.employeeName,
         employeeCode: ctx.employeeCode,
-             branchName: branchMap[String(r.branchId)] || ctx.branchName,
+        branchName: branchMap[String(r.branchId)] || ctx.branchName,
         departmentId: String(r.departmentId),
         departmentName: deptMap[String(r.departmentId)] || "",
         categoryId: String(r.ticketCategoryId),
@@ -478,6 +497,7 @@ export const getTicketList = async (
         subject: r.subject,
         issueDescription: r.issueDescription,
         attachment: r.attachment || null,
+        attachmentUrl: toPublicUrl(req, r.attachment),
         contactNumber: r.contactNumber || "",
         statusId: String(r.ticketStatusId),
         status: statusMap[String(r.ticketStatusId)] || "Open",
@@ -488,6 +508,115 @@ export const getTicketList = async (
     return successResponse(res, data, "Tickets fetched successfully.");
   } catch (error) {
     console.error("getTicketList error:", error);
+    return errorResponse(res, "Something Went Wrong", error);
+  }
+};
+
+// ---- Update Ticket (multipart: optional new "attachment" file) ----
+export const updateTicket = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  const reject = (message: string) => {
+    removeUploaded(req.file);
+    return errorResponse(res, message);
+  };
+
+  try {
+    const ctx = await getEmployeeContext(req);
+    if (!ctx) {
+      removeUploaded(req.file);
+      return requiredmessage(res, "Employee not found.");
+    }
+
+    // req.body is already validated + cleaned by the route middleware
+    const value = req.body;
+    const { companyId, employeeId } = ctx;
+    const ticketId = Number(value.ticketId);
+
+    // Own ticket only
+    const existingRows: any[] = await selectWithJoins(
+      "ticket",
+      [],
+      { ticketId, companyId, employeeId, delete: 0 },
+      [
+        "ticketId",
+        "departmentId",
+        "ticketCategoryId",
+        "ticketStatusId",
+        "attachment",
+      ],
+    );
+    if (!existingRows.length) return reject("Ticket not found.");
+    const existing = existingRows[0];
+
+    // Editable only while the status allows it
+    const statusRows: any[] = await selectWithJoins(
+      "ticketstatus",
+      [],
+      { ticketStatusId: existing.ticketStatusId, companyId },
+      ["ticketStatusId", "statusName"],
+    );
+    const currentStatus = String(statusRows[0]?.statusName || "")
+      .trim()
+      .toLowerCase();
+    if (!EDITABLE_STATUSES.includes(currentStatus)) {
+      return reject("Only tickets with status Open can be edited.");
+    }
+
+    // Department (inactive is rejected only when newly picked)
+    const deptRows: any[] = await selectWithJoins(
+      "department",
+      [],
+      { departmentId: value.departmentId, companyId, delete: 0 },
+      ["departmentId", "status"],
+    );
+    if (!deptRows.length) return reject("Selected department was not found.");
+    if (
+      Number(existing.departmentId) !== value.departmentId &&
+      deptRows[0].status !== "Active"
+    ) {
+      return reject("Selected department is inactive.");
+    }
+
+    // Category must belong to the department
+    const catRows: any[] = await selectWithJoins(
+      "ticketcategory",
+      [],
+      { ticketCategoryId: value.categoryId, companyId, delete: 0 },
+      ["ticketCategoryId", "departmentId", "status"],
+    );
+    if (!catRows.length) return reject("Selected category was not found.");
+    if (
+      Number(existing.ticketCategoryId) !== value.categoryId &&
+      catRows[0].status !== "Active"
+    ) {
+      return reject("Selected category is inactive.");
+    }
+    if (Number(catRows[0].departmentId) !== value.departmentId) {
+      return reject("Selected category does not belong to the department.");
+    }
+
+    // ticketNo, ticketCode, status and createdBy are not changed on update
+    const values: Record<string, unknown> = {
+      departmentId: value.departmentId,
+      ticketCategoryId: value.categoryId,
+      subject: value.subject,
+      issueDescription: value.issueDescription,
+      updatedBy: String(employeeId),
+      updated: new Date(),
+    };
+    if (req.file) values.attachment = req.file.path.replace(/\\/g, "/");
+
+    await updateModel("ticket", values, { ticketId, companyId });
+
+    // new file saved, so drop the old one
+    if (req.file) removeStoredFile(existing.attachment);
+
+    return successResponse(res, { ticketId }, "Ticket updated successfully.");
+  } catch (error) {
+    removeUploaded(req.file);
+    console.error("updateTicket error:", error);
     return errorResponse(res, "Something Went Wrong", error);
   }
 };

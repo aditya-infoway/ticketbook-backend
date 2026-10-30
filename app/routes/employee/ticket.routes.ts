@@ -7,9 +7,10 @@ import {
   getNextTicketNo,
   getTicketFormData,
   createTicket,
+  updateTicket,
   getTicketList,
 } from "../../controllers/employee/controller/ticketcontroller";
-import { ticketCreateSchema } from "../../controllers/employee/validator/ticketvalidator";
+import { ticketCreateSchema, ticketUpdateSchema, } from "../../controllers/employee/validator/ticketvalidator";
 
 const upload = createUploader(
   "ticket",
@@ -67,6 +68,13 @@ export default (app: Application): void => {
     uploadAttachment,
     validate(ticketCreateSchema),
     createTicket,
+  );
+
+  routes.put(
+    "/update",
+    uploadAttachment,
+    validate(ticketUpdateSchema),
+    updateTicket,
   );
 
   app.use("/employee/ticket", routes);

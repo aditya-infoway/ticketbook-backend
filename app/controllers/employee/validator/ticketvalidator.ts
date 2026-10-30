@@ -26,3 +26,7 @@ export const ticketCreateSchema = Joi.object({
     "string.max": "Description must be at most 2000 characters",
   }),
 });
+
+export const ticketUpdateSchema = ticketCreateSchema.keys({
+  ticketId: requiredId("Ticket"),
+});
