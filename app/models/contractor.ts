@@ -53,6 +53,12 @@ export default (sequelize: Sequelize) => {
     areaId: { type: DataTypes.INTEGER, allowNull: false, field: "areaId" },
     branchId: { type: DataTypes.INTEGER, allowNull: false, field: "branchId" },
 
+    contractorDepartmentId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "contractorDepartmentId",
+    },
+
     password: {
       type: DataTypes.STRING(255),
       allowNull: false,
