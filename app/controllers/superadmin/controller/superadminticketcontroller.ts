@@ -22,14 +22,19 @@ const istDateTime = (value: unknown): string => {
   return `${istDate(d)} ${time}`;
 };
 
-// Superadmin token (checktoken) req me companyId set nahi karta (headers me sirf apitoken/x-token/elevel aate hain).
-// Isliye companyId OPTIONAL hai:
+// Full public URL for a stored upload, e.g. http://localhost:8001/Uploadimages/ticket/x.jpg
+const toPublicUrl = (req: Request, storedPath?: string | null): string => {
+  if (!storedPath) return "";
+  const clean = String(storedPath).replace(/\\/g, "/").replace(/^\/+/, "");
+  return `${req.protocol}://${req.get("host")}/${clean}`;
+};
+
+// Superadmin token (checktoken) req me companyId set nahi karta, isliye OPTIONAL:
 //   - query / body me companyId aaye to sirf us company ka data
-//   - na aaye to superadmin ko saari companies/branches ka data dikhta hai
+//   - na aaye to saari companies/branches ka data
 const getCompanyId = (req: Request): number | null => {
   const r = req as any;
-  const raw = r.companyId ?? r.query?.companyId ?? r.body?.companyId;
-  const n = Number(raw);
+  const n = Number(r.companyId ?? r.query?.companyId ?? r.body?.companyId);
   return n ? n : null;
 };
 
@@ -56,6 +61,81 @@ const mapOf = async (
   return map;
 };
 
+const TICKET_COLUMNS = [
+  "ticketId",
+  "ticketNo",
+  "ticketCode",
+  "employeeId",
+  "branchId",
+  "departmentId",
+  "ticketCategoryId",
+  "subject",
+  "issueDescription",
+  "attachment",
+  "contactNumber",
+  "ticketStatusId",
+  "createdBy",
+  "created",
+];
+
+// Lookup maps + row -> response shape (list aur details dono me same)
+const buildLookups = async (companyId: number | null) => {
+  const empRows: any[] = await selectWithJoins(
+    "employee",
+    [],
+    { ...withCompany(companyId), delete: 0 },
+    ["employeeId", "employeeName", "employeeCode"],
+  );
+  const empMap: Record<string, { name: string; code: string }> = {};
+  empRows.forEach((e) => {
+    empMap[String(e.employeeId)] = {
+      name: e.employeeName,
+      code: e.employeeCode,
+    };
+  });
+
+  const [branchMap, deptMap, catMap, statusMap] = await Promise.all([
+    mapOf(companyId, "branch", "branchId", "branchName"),
+    mapOf(companyId, "department", "departmentId", "departmentName"),
+    mapOf(companyId, "ticketcategory", "ticketCategoryId", "categoryName"),
+    mapOf(companyId, "ticketstatus", "ticketStatusId", "statusName"),
+  ]);
+
+  return { empMap, branchMap, deptMap, catMap, statusMap };
+};
+
+const toRow = (
+  req: Request,
+  r: any,
+  l: Awaited<ReturnType<typeof buildLookups>>,
+) => {
+  const emp = l.empMap[String(r.employeeId)];
+  return {
+    id: String(r.ticketId),
+    ticketId: r.ticketId,
+    ticketNo: r.ticketNo || "",
+    ticketNumber: r.ticketCode || r.ticketNo || "",
+    employeeId: String(r.employeeId),
+    employeeName: emp?.name || "",
+    employeeCode: emp?.code || "",
+    branchId: String(r.branchId || ""),
+    branchName: l.branchMap[String(r.branchId)] || "",
+    departmentId: String(r.departmentId),
+    departmentName: l.deptMap[String(r.departmentId)] || "",
+    categoryId: String(r.ticketCategoryId),
+    categoryName: l.catMap[String(r.ticketCategoryId)] || "",
+    subject: r.subject,
+    issueDescription: r.issueDescription,
+    attachment: r.attachment || null,
+    attachmentUrl: toPublicUrl(req, r.attachment),
+    contactNumber: r.contactNumber || "",
+    statusId: String(r.ticketStatusId),
+    status: l.statusMap[String(r.ticketStatusId)] || "Open",
+    createdBy: r.createdBy || "",
+    createdAt: istDateTime(r.created),
+  };
+};
+
 // ---- Superadmin ticket list ----
 // GET superadmin/ticket/list
 // Query: search, companyId(optional), branchId, departmentId, categoryId, ticketStatusId, fromDate, toDate
@@ -71,53 +151,17 @@ export const getSuperAdminTicketList = async (
       "ticket",
       [],
       { ...withCompany(companyId), delete: 0 },
-      [
-        "ticketId",
-        "ticketNo",
-        "ticketCode",
-        "employeeId",
-        "branchId",
-        "departmentId",
-        "ticketCategoryId",
-        "subject",
-        "issueDescription",
-        "attachment",
-        "contactNumber",
-        "ticketStatusId",
-        "createdBy",
-        "created",
-      ],
+      TICKET_COLUMNS,
       [["ticketId", "DESC"]],
     );
 
-    // Employee name/code map
-    const empRows: any[] = await selectWithJoins(
-      "employee",
-      [],
-      { ...withCompany(companyId), delete: 0 },
-      ["employeeId", "employeeName", "employeeCode"],
-    );
-    const empMap: Record<string, { name: string; code: string }> = {};
-    empRows.forEach((e) => {
-      empMap[String(e.employeeId)] = {
-        name: e.employeeName,
-        code: e.employeeCode,
-      };
-    });
-
-    const [branchMap, deptMap, catMap, statusMap] = await Promise.all([
-      mapOf(companyId, "branch", "branchId", "branchName"),
-      mapOf(companyId, "department", "departmentId", "departmentName"),
-      mapOf(companyId, "ticketcategory", "ticketCategoryId", "categoryName"),
-      mapOf(companyId, "ticketstatus", "ticketStatusId", "statusName"),
-    ]);
-
+    const lookups = await buildLookups(companyId);
     const search = (q.search || "").trim().toLowerCase();
 
     const data = rows
       .filter((r) => {
         if (search) {
-          const emp = empMap[String(r.employeeId)];
+          const emp = lookups.empMap[String(r.employeeId)];
           const hit =
             String(r.ticketCode || "").toLowerCase().includes(search) ||
             String(r.ticketNo || "").toLowerCase().includes(search) ||
@@ -140,36 +184,43 @@ export const getSuperAdminTicketList = async (
         if (q.toDate && day > q.toDate) return false;
         return true;
       })
-      .map((r) => {
-        const emp = empMap[String(r.employeeId)];
-        return {
-          id: String(r.ticketId),
-          ticketId: r.ticketId,
-          ticketNo: r.ticketNo || "",
-          ticketNumber: r.ticketCode || r.ticketNo || "",
-          employeeId: String(r.employeeId),
-          employeeName: emp?.name || "",
-          employeeCode: emp?.code || "",
-          branchId: String(r.branchId || ""),
-          branchName: branchMap[String(r.branchId)] || "",
-          departmentId: String(r.departmentId),
-          departmentName: deptMap[String(r.departmentId)] || "",
-          categoryId: String(r.ticketCategoryId),
-          categoryName: catMap[String(r.ticketCategoryId)] || "",
-          subject: r.subject,
-          issueDescription: r.issueDescription,
-          attachment: r.attachment || null,
-          contactNumber: r.contactNumber || "",
-          statusId: String(r.ticketStatusId),
-          status: statusMap[String(r.ticketStatusId)] || "Open",
-          createdBy: r.createdBy || "",
-          createdAt: istDateTime(r.created),
-        };
-      });
+      .map((r) => toRow(req, r, lookups));
 
     return successResponse(res, data, "Tickets fetched successfully.");
   } catch (error) {
     console.error("getSuperAdminTicketList error:", error);
+    return errorResponse(res, "Something Went Wrong", error);
+  }
+};
+
+// ---- Single ticket (details page) ----
+// GET superadmin/ticket/details/:id
+export const getSuperAdminTicketDetails = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  try {
+    const companyId = getCompanyId(req);
+    const ticketId = Number(req.params.id);
+    if (!ticketId) return errorResponse(res, "Invalid ticket id.");
+
+    const rows: any[] = await selectWithJoins(
+      "ticket",
+      [],
+      { ...withCompany(companyId), ticketId, delete: 0 },
+      TICKET_COLUMNS,
+    );
+    if (!rows.length) return errorResponse(res, "Ticket not found.");
+
+    const lookups = await buildLookups(companyId);
+
+    return successResponse(
+      res,
+      toRow(req, rows[0], lookups),
+      "Ticket fetched successfully.",
+    );
+  } catch (error) {
+    console.error("getSuperAdminTicketDetails error:", error);
     return errorResponse(res, "Something Went Wrong", error);
   }
 };
@@ -289,7 +340,7 @@ export const updateSuperAdminTicketStatus = async (
     // saveModel sirf create karta hai, update ke liye updateModel use hota hai
     await updateModel(
       "ticket",
-      { ticketStatusId },
+      { ticketStatusId, updated: new Date() },
       { ticketId, companyId: ticketRows[0].companyId, delete: 0 },
     );
 

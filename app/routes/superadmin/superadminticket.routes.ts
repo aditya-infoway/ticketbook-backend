@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction, Application } from "express";
 
 import { errorResponse } from "../../helper/index";
-import * as ticket from "../../controllers/superadmin/controller/superadminticketcontroller"; 
+import * as ticket from "../../controllers/superadmin/controller/superadminticketcontroller";
 import { ticketStatusUpdateSchema } from "../../controllers/superadmin/validator/ticketvalidator";
 import { checktoken } from "../../middleware/token";
 
@@ -29,6 +29,7 @@ routes.use(checktoken);
 // ---- Superadmin Ticket Management ----
 routes.get("/list", ticket.getSuperAdminTicketList);
 routes.get("/form-data", ticket.getSuperAdminTicketFormData);
+routes.get("/details/:id", ticket.getSuperAdminTicketDetails);
 routes.put(
   "/status/:id",
   validate(ticketStatusUpdateSchema),
