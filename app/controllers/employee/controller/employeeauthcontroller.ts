@@ -10,9 +10,7 @@ import {
 } from "../../../helper/index";
 import { todayIST } from "../../../helper/dateHelper";
 
-
 const INVALID = "Invalid email or password.";
-
 
 const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 10);
 
@@ -28,7 +26,6 @@ const generateToken = (payload: {
   });
 };
 
-
 const getCompanyFinancialYears = async (
   companyId: number | string,
   companyName: string,
@@ -37,7 +34,13 @@ const getCompanyFinancialYears = async (
     "financialyear",
     [],
     { companyId, delete: 0 },
-    ["financialYearId", "companyDetailsId", "companyId", "startDate", "endDate"],
+    [
+      "financialYearId",
+      "companyDetailsId",
+      "companyId",
+      "startDate",
+      "endDate",
+    ],
   );
 
   const day = (value: any) => String(value || "").slice(0, 10); // YYYY-MM-DD
@@ -54,9 +57,14 @@ const getCompanyFinancialYears = async (
     }));
 };
 
-export const employeeLogin = async (req: Request, res: Response): Promise<any> => {
+export const employeeLogin = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
   try {
-    const email = String(req.body?.email || "").trim().toLowerCase();
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
     const password = String(req.body?.password || "");
 
     if (!email || !password) {
@@ -86,9 +94,9 @@ export const employeeLogin = async (req: Request, res: Response): Promise<any> =
     // ---------- 2. If no employee → try Contractor ----------
     if (!user || !user.password) {
       rows = await selectWithJoins(
-        "contractor",                       // ← your real table name
+        "contractor", // ← your real table name
         [],
-        { email: email, delete: 0 },        // adjust column name if different
+        { email: email, delete: 0 }, // adjust column name if different
         [
           "contractorId",
           "companyId",
@@ -117,15 +125,24 @@ export const employeeLogin = async (req: Request, res: Response): Promise<any> =
     // ---------- Status checks ----------
     if (isContractor) {
       if (String(user.status || "").toUpperCase() !== "ACTIVE") {
-        return errorResponse(res, "Your account is inactive. Please contact the administrator.");
+        return errorResponse(
+          res,
+          "Your account is inactive. Please contact the administrator.",
+        );
       }
     } else {
       // original employee checks
       if (user.employmentStatus !== "Active") {
-        return errorResponse(res, "Your account is inactive. Please contact the administrator.");
+        return errorResponse(
+          res,
+          "Your account is inactive. Please contact the administrator.",
+        );
       }
       if (user.employmentEndDate && user.employmentEndDate < todayIST()) {
-        return errorResponse(res, "Your employment has ended. Please contact the administrator.");
+        return errorResponse(
+          res,
+          "Your employment has ended. Please contact the administrator.",
+        );
       }
     }
 
@@ -139,17 +156,48 @@ export const employeeLogin = async (req: Request, res: Response): Promise<any> =
     const company = companies[0];
 
     if (!company || String(company.status || "").toUpperCase() === "REJECTED") {
-      return errorResponse(res, "Company account is not active. Please contact the administrator.");
+      return errorResponse(
+        res,
+        "Company account is not active. Please contact the administrator.",
+      );
     }
 
     if (company.expiryDate) {
       const expiry = new Date(company.expiryDate);
       expiry.setHours(23, 59, 59, 999);
       if (expiry < new Date()) {
-        return errorResponse(res, "Your company subscription has expired. Please contact the administrator.");
+        return errorResponse(
+          res,
+          "Your company subscription has expired. Please contact the administrator.",
+        );
       }
     }
+    // ---------- Financial years (Select Company page ke liye) ----------
+    const financialYears = await getCompanyFinancialYears(
+      user.companyId,
+      company.companyName,
+    );
 
+    if (financialYears.length === 0) {
+      return errorResponse(
+        res,
+        "No financial year found for your company. Please contact the administrator.",
+      );
+    }
+
+    // ---------- Role name ----------
+    let roleName = "";
+    if (isContractor) {
+      roleName = "contractor";
+    } else if (user.roleId) {
+      const roles: any[] = await selectWithJoins(
+        "role",
+        [],
+        { roleId: user.roleId, companyId: user.companyId, delete: 0 },
+        ["roleName"],
+      );
+      roleName = roles[0]?.roleName || "";
+    }
     // ---------- Generate token ----------
     const token = jwt.sign(
       {
@@ -184,7 +232,9 @@ export const employeeLogin = async (req: Request, res: Response): Promise<any> =
       email: isContractor ? user.email : user.officialEmail,
       companyId: user.companyId,
       companyName: company.companyName,
-      isContractor,                       // useful on frontend
+      financialYears, // <- wapas
+      roleName,
+      isContractor, // useful on frontend
     };
 
     if (isContractor) {

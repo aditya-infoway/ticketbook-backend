@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import fs from "fs";
-import bcrypt from "bcryptjs"; 
+import bcrypt from "bcryptjs";
 
 import {
   errorResponse,
@@ -26,6 +26,7 @@ interface ContractorBody {
   address?: string | null;
   areaId: Id;
   branchId: Id;
+  contractorDepartmentId?: Id;
   status?: string;
   password?: string;
   confirmPassword?: string;
@@ -163,7 +164,26 @@ const validateLinks = async (
 
   return null;
 };
+// Department optional hai; diya ho to isi company ka hona chahiye
+const validateDepartment = async (
+  companyId: Id,
+  departmentId: number | null,
+  existingId?: number | null,
+): Promise<string | null> => {
+  if (!departmentId) return null;
 
+  const rows: any[] = await selectWithJoins(
+    "contractordepartment",
+    [],
+    { contractorDepartmentId: departmentId, companyId, delete: 0 },
+    ["contractorDepartmentId", "status"],
+  );
+  if (!rows.length) return "Selected department was not found.";
+  if (Number(existingId) !== departmentId && rows[0].status !== "Active") {
+    return "Selected department is inactive.";
+  }
+  return null;
+};
 // Unique Contractor No (prefix + FY + running number), retry on collision
 const generateUniqueContractorNo = async (
   companyId: number,
@@ -227,7 +247,11 @@ export const createContractor = async (
 
     const linkError = await validateLinks(companyId, areaId, branchId);
     if (linkError) return reject(linkError);
-
+    const departmentId = body.contractorDepartmentId
+      ? Number(body.contractorDepartmentId)
+      : null;
+    const deptError = await validateDepartment(companyId, departmentId);
+    if (deptError) return reject(deptError);
     const contractorNo = await generateUniqueContractorNo(
       Number(companyId),
       fy.financialYearId,
@@ -253,6 +277,7 @@ export const createContractor = async (
       address: toText(body.address),
       areaId,
       branchId,
+      contractorDepartmentId: departmentId,
       password: await bcrypt.hash(String(body.password), 10),
       documents: JSON.stringify(documents),
       status: body.status || "Active",
@@ -306,6 +331,7 @@ export const getContractorList = async (
         "address",
         "areaId",
         "branchId",
+          "contractorDepartmentId",
         "documents",
         "status",
         "createdBy",
@@ -335,9 +361,10 @@ export const getContractorList = async (
       return map;
     };
 
-    const [areaMap, branchMap] = await Promise.all([
+    const [areaMap, branchMap, deptMap] = await Promise.all([
       mapOf("region", "regionId", "regionName"),
       mapOf("branch", "branchId", "branchName"),
+      mapOf("contractordepartment", "contractorDepartmentId", "departmentName"),
     ]);
 
     // password is never returned
@@ -356,6 +383,10 @@ export const getContractorList = async (
       areaName: areaMap[String(r.areaId)] || "",
       branchId: String(r.branchId),
       branchName: branchMap[String(r.branchId)] || "",
+      contractorDepartmentId: r.contractorDepartmentId
+        ? String(r.contractorDepartmentId)
+        : "",
+      departmentName: deptMap[String(r.contractorDepartmentId)] || "",
       documents: parseDocs(r.documents),
       status: r.status,
       createdBy: r.createdBy || "",
@@ -398,7 +429,13 @@ export const updateContractor = async (
       "contractor",
       [],
       { contractorId, companyId, delete: 0 },
-      ["contractorId", "areaId", "branchId", "documents"],
+      [
+        "contractorId",
+        "areaId",
+        "branchId",
+        "contractorDepartmentId",
+        "documents",
+      ],
     );
     if (!existingRows.length) return reject("Contractor not found.");
     const existing = existingRows[0];
@@ -420,7 +457,15 @@ export const updateContractor = async (
       branchId: existing.branchId,
     });
     if (linkError) return reject(linkError);
-
+    const departmentId = body.contractorDepartmentId
+      ? Number(body.contractorDepartmentId)
+      : null;
+    const deptError = await validateDepartment(
+      companyId,
+      departmentId,
+      existing.contractorDepartmentId,
+    );
+    if (deptError) return reject(deptError);
     // Documents: keep what the drawer still lists, then add the new files.
     // No "existingDocuments" sent (e.g. status toggle) = keep all of them.
     const currentDocs = parseDocs(existing.documents);
@@ -452,7 +497,10 @@ export const updateContractor = async (
     if (body.password) {
       values.password = await bcrypt.hash(String(body.password), 10);
     }
-
+    // body me key aayi ho tabhi badlo (khali = hata do)
+    if ("contractorDepartmentId" in body) {
+      values.contractorDepartmentId = departmentId;
+    }
     await updateModel("contractor", values, { contractorId, companyId });
 
     // saved, so drop the files that were removed

@@ -15,8 +15,11 @@ import {
 
 const toText = (v: unknown): string =>
   v === undefined || v === null ? "" : String(v).trim();
-
 const getMyId = (req: Request): number => Number((req as any).employeeId) || 0;
+
+const isContractorReq = (req: Request): boolean => !!(req as any).isContractor;
+const getContractorId = (req: Request): number =>
+  Number((req as any).contractorId) || 0;
 
 const removeOldFile = (oldFile?: string | null): void => {
   if (!oldFile) return;
@@ -31,6 +34,73 @@ export const getMyProfile = async (
   res: Response,
 ): Promise<any> => {
   try {
+    // ---------- Contractor ----------
+    if (isContractorReq(req)) {
+      const contractorId = getContractorId(req);
+      if (!contractorId)
+        return requiredmessage(res, "Unauthorized. Please login again.");
+
+      const cRows: any[] = await selectWithJoins(
+        "contractor",
+        [],
+        { contractorId, delete: 0 },
+        [
+          "contractorNo",
+          "contractorName",
+          "companyId",
+          "mobileNumber",
+          "email",
+          "specialization",
+          "address",
+          "areaId",
+          "branchId",
+          "status",
+            "profilePhoto", 
+        ],
+      );
+      if (!cRows.length) return requiredmessage(res, "Contractor not found.");
+      const c = cRows[0];
+
+      const branches: any[] = await selectWithJoins(
+        "branch",
+        [],
+        { branchId: c.branchId, companyId: c.companyId, delete: 0 },
+        ["branchName"],
+      );
+      const regions: any[] = await selectWithJoins(
+        "region",
+        [],
+        { regionId: c.areaId, companyId: c.companyId, delete: 0 },
+        ["regionName"],
+      );
+
+      return successResponse(
+        res,
+        {
+          employeeNo: c.contractorNo || "",
+          employeeCode: c.contractorNo || "",
+          employeeName: c.contractorName || "",
+      profilePhoto: c.profilePhoto ? getBlobTempPublicUrl(c.profilePhoto) : "",
+          officialEmail: c.email || "",
+          mobileCountryCode: "91",
+          mobileNumber: c.mobileNumber || "",
+          alternateCountryCode: "91",
+          alternateContact: "",
+          employeeTypeName: "Contractor",
+          roleName: "contractor",
+          departmentName: "",
+          dateOfJoining: "",
+          employmentStatus: c.status || "",
+          specialization: c.specialization || "",
+          address: c.address || "",
+          areaName: regions[0]?.regionName || "",
+          branchName: branches[0]?.branchName || "",
+        },
+        "Profile fetched successfully.",
+      );
+    }
+
+    // ---------- Employee (pehle jaisa) ----------
     const employeeId = getMyId(req);
     if (!employeeId)
       return requiredmessage(res, "Unauthorized. Please login again.");
@@ -57,6 +127,7 @@ export const getMyProfile = async (
         "employmentStatus",
       ],
     );
+
     if (!rows.length) return requiredmessage(res, "Employee not found.");
     const r = rows[0];
 
@@ -130,7 +201,66 @@ export const updateMyProfile = async (
   res: Response,
 ): Promise<any> => {
   try {
+    // ---------- Contractor ----------
+    if (isContractorReq(req)) {
+      const contractorId = getContractorId(req);
+      if (!contractorId)
+        return requiredmessage(res, "Unauthorized. Please login again.");
+
+      const cBody = req.body as Record<string, any>;
+
+      const cExisting: any[] = await selectWithJoins(
+        "contractor",
+        [],
+        { contractorId, delete: 0 },
+      ["contractorId", "password", "profilePhoto"],
+      );
+      if (!cExisting.length)
+        return requiredmessage(res, "Contractor not found.");
+
+      const cName = toText(cBody.employeeName);
+      if (!cName) return errorResponse(res, "Name is required.");
+
+      const cMobile = toText(cBody.mobileNumber);
+      if (cMobile && !/^[0-9]{6,15}$/.test(cMobile))
+        return errorResponse(res, "Mobile number must be 6-15 digits.");
+
+      const cPayload: Record<string, any> = {
+        contractorName: cName,
+        mobileNumber: cMobile,
+        updatedBy: String(contractorId),
+        updated: new Date(),
+      };
+
+      if (cBody.newPassword) {
+        if (String(cBody.newPassword).length < 6)
+          return errorResponse(
+            res,
+            "New password must be at least 6 characters.",
+          );
+        if (cBody.newPassword !== cBody.confirmPassword)
+          return errorResponse(res, "Passwords do not match.");
+        const ok = cExisting[0].password
+          ? await bcrypt.compare(
+              String(cBody.currentPassword || ""),
+              cExisting[0].password,
+            )
+          : false;
+        if (!ok) return errorResponse(res, "Current password is incorrect.");
+        cPayload.password = await bcrypt.hash(String(cBody.newPassword), 10);
+      }
+const cPhoto = (req as any).file as Express.Multer.File | undefined;
+if (cPhoto) {
+  cPayload.profilePhoto = "employee_photo/" + cPhoto.filename;
+  removeOldFile(cExisting[0].profilePhoto);
+}
+      await updateModel("contractor", cPayload, { contractorId });
+      return successResponse(res, {}, "Profile updated successfully.");
+    }
+
+    // ---------- Employee (pehle jaisa) ----------
     const employeeId = getMyId(req);
+
     if (!employeeId)
       return requiredmessage(res, "Unauthorized. Please login again.");
 

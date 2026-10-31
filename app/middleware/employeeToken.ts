@@ -14,7 +14,14 @@ export const checkEmployeeToken = async (token: string) => {
     ["companyId", "employeeId", "employeeName", "officialEmail", "tokenDate"],
   );
 };
-
+export const checkContractorToken = async (token: string) => {
+  return await selectWithJoins(
+    "contractor",
+    [],
+    { token, delete: 0, status: "Active" },
+    ["companyId", "contractorId", "contractorName", "email", "tokenDate"],
+  );
+};
 // Use on employee-panel routes: sets req.employeeId and req.companyId
 export const employeeAuth = async (
   req: Request,
@@ -30,19 +37,30 @@ export const employeeAuth = async (
         message: "Authentication failed! Token missing.",
       });
     }
-const rows: any[] = await checkEmployeeToken(token);
 
-if (!rows.length || rows[0].tokenDate !== todayIST()) {
-  return res.status(401).json({
-    status: 401,
-    message: "Invalid or expired session. Please login again.",
-  });
-}
+    // 1. Employee
+    const rows: any[] = await checkEmployeeToken(token);
 
-    (req as any).employeeId = rows[0].employeeId;
-    (req as any).companyId = rows[0].companyId;
+    if (rows.length && rows[0].tokenDate === todayIST()) {
+      (req as any).employeeId = rows[0].employeeId;
+      (req as any).companyId = rows[0].companyId;
+      return next();
+    }
 
-    next();
+    // 2. Contractor
+    const contractors: any[] = await checkContractorToken(token);
+
+    if (contractors.length && contractors[0].tokenDate === todayIST()) {
+      (req as any).contractorId = contractors[0].contractorId;
+      (req as any).companyId = contractors[0].companyId;
+      (req as any).isContractor = true;
+      return next();
+    }
+
+    return res.status(401).json({
+      status: 401,
+      message: "Invalid or expired session. Please login again.",
+    });
   } catch (error) {
     return res.status(401).json({
       status: 401,
