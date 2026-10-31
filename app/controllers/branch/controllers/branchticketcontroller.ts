@@ -116,6 +116,23 @@ export const getBranchTicketList = async (
       mapOf(companyId, "ticketstatus", "ticketStatusId", "statusName"),
     ]);
 
+    const assignRows: any[] = await selectWithJoins(
+      "ticketassign",
+      [],
+      { companyId, branchId, status: "Active", delete: 0 },
+      ["ticketId", "contractorId", "assignedAt"],
+    );
+    const contractorMap = await mapOf(
+      companyId,
+      "contractor",
+      "contractorId",
+      "contractorName",
+    );
+    const assignMap: Record<string, any> = {};
+    assignRows.forEach((a) => {
+      assignMap[String(a.ticketId)] = a;
+    });
+
     const search = (q.search || "").trim().toLowerCase();
 
     const data = rows
@@ -123,10 +140,18 @@ export const getBranchTicketList = async (
         if (search) {
           const emp = empMap[String(r.employeeId)];
           const hit =
-            String(r.ticketCode || "").toLowerCase().includes(search) ||
-            String(r.ticketNo || "").toLowerCase().includes(search) ||
-            String(r.subject || "").toLowerCase().includes(search) ||
-            String(emp?.name || "").toLowerCase().includes(search);
+            String(r.ticketCode || "")
+              .toLowerCase()
+              .includes(search) ||
+            String(r.ticketNo || "")
+              .toLowerCase()
+              .includes(search) ||
+            String(r.subject || "")
+              .toLowerCase()
+              .includes(search) ||
+            String(emp?.name || "")
+              .toLowerCase()
+              .includes(search);
           if (!hit) return false;
         }
         if (q.departmentId && String(r.departmentId) !== q.departmentId) {
@@ -166,6 +191,14 @@ export const getBranchTicketList = async (
           status: statusMap[String(r.ticketStatusId)] || "Open",
           createdBy: r.createdBy || "",
           createdAt: istDateTime(r.created),
+          isAssigned: !!assignMap[String(r.ticketId)],
+          contractorName:
+            contractorMap[
+              String(assignMap[String(r.ticketId)]?.contractorId)
+            ] || "",
+          assignedAt: assignMap[String(r.ticketId)]
+            ? istDateTime(assignMap[String(r.ticketId)].assignedAt)
+            : "",
         };
       });
 
@@ -188,7 +221,14 @@ export const getBranchTicketFormData = async (
 
     const { companyId, branchId } = ctx;
 
-    const [depts, cats, statuses, branchRows]: any[][] = await Promise.all([
+    const [
+      depts,
+      cats,
+      statuses,
+      branchRows,
+      contractorRows,
+      cdeptRows,
+    ]: any[][] = await Promise.all([
       selectWithJoins(
         "department",
         [],
@@ -210,12 +250,21 @@ export const getBranchTicketFormData = async (
         ["ticketStatusId", "statusName", "displayOrder"],
         [["displayOrder", "ASC"]],
       ),
+      selectWithJoins("branch", [], { branchId, companyId, delete: 0 }, [
+        "branchId",
+        "branchName",
+      ]),
       selectWithJoins(
-        "branch",
+        "contractor",
         [],
-        { branchId, companyId, delete: 0 },
-        ["branchId", "branchName"],
+        { companyId, branchId, delete: 0, status: "Active" },
+        ["contractorId", "contractorName", "contractorDepartmentId"],
+        [["contractorName", "ASC"]],
       ),
+      selectWithJoins("contractordepartment", [], { companyId, delete: 0 }, [
+        "contractorDepartmentId",
+        "departmentName",
+      ]),
     ]);
 
     return successResponse(
@@ -236,6 +285,19 @@ export const getBranchTicketFormData = async (
           id: String(c.ticketCategoryId),
           label: c.categoryName,
           departmentId: String(c.departmentId),
+        })),
+        contractors: contractorRows.map((c) => ({
+          id: String(c.contractorId),
+          label: c.contractorName,
+          departmentId: c.contractorDepartmentId
+            ? String(c.contractorDepartmentId)
+            : "",
+          departmentName:
+            cdeptRows.find(
+              (d) =>
+                String(d.contractorDepartmentId) ===
+                String(c.contractorDepartmentId),
+            )?.departmentName || "",
         })),
         statuses: statuses.map((s) => ({
           id: String(s.ticketStatusId),
@@ -284,7 +346,10 @@ export const updateBranchTicketStatus = async (
       ["ticketStatusId", "statusName"],
     );
     if (!statusRows.length) {
-      return errorResponse(res, "Selected status was not found or is inactive.");
+      return errorResponse(
+        res,
+        "Selected status was not found or is inactive.",
+      );
     }
 
     if (Number(ticketRows[0].ticketStatusId) === ticketStatusId) {
