@@ -9,6 +9,7 @@ export default (sequelize: Sequelize) => {
       autoIncrement: true,
       field: "ticketId",
     },
+    
     companyId: {
       type: DataTypes.INTEGER,
       allowNull: false,

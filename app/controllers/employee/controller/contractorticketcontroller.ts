@@ -361,10 +361,14 @@ export const updateContractorTicketStatus = async (
       return errorResponse(res, `Status "${statusName}" not found in system.`);
     }
 
-    // Update ticket status
+  
     await updateModel(
       "ticket",
-      { ticketStatusId: matched.ticketStatusId },
+      {
+        ticketStatusId: matched.ticketStatusId,
+        updatedBy: String(contractorId),
+        updated: new Date(),
+      },
       { ticketId, companyId, delete: 0 },
     );
 
