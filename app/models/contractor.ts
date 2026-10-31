@@ -10,10 +10,10 @@ export default (sequelize: Sequelize) => {
       field: "contractorId",
     },
     profilePhoto: {
-  type: DataTypes.STRING(255),
-  allowNull: true,
-  field: "profilePhoto",
-},
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      field: "profilePhoto",
+    },
     companyId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -78,14 +78,14 @@ export default (sequelize: Sequelize) => {
       defaultValue: "Active", // "Active" | "Inactive"
       field: "status",
     },
-token: {
-  type: DataTypes.TEXT,
-  allowNull: true,
-},
-tokenDate: {
-  type: DataTypes.STRING,
-  allowNull: true,
-},
+    token: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    tokenDate: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     // Audit
     createdBy: {
       type: DataTypes.STRING(100),

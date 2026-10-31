@@ -550,7 +550,7 @@ export const updateTicket = async (
     if (!existingRows.length) return reject("Ticket not found.");
     const existing = existingRows[0];
 
-    // Editable only while the status allows it
+    // Current status of the ticket
     const statusRows: any[] = await selectWithJoins(
       "ticketstatus",
       [],
@@ -560,58 +560,90 @@ export const updateTicket = async (
     const currentStatus = String(statusRows[0]?.statusName || "")
       .trim()
       .toLowerCase();
-    if (!EDITABLE_STATUSES.includes(currentStatus)) {
+
+    if (currentStatus === "closed") {
+      return reject("This ticket is already closed.");
+    }
+
+    // Requested status (if any) must be "Closed"
+    let closeStatusId: number | null = null;
+    if (value.ticketStatusId) {
+      const allStatuses: any[] = await selectWithJoins(
+        "ticketstatus",
+        [],
+        { ticketStatusId: value.ticketStatusId, companyId, delete: 0 },
+        ["ticketStatusId", "statusName"],
+      );
+      const requested = String(allStatuses[0]?.statusName || "")
+        .trim()
+        .toLowerCase();
+      if (requested !== "closed") {
+        return reject("Employees can only close a ticket.");
+      }
+      closeStatusId = Number(allStatuses[0].ticketStatusId);
+    }
+
+    const isEditable = EDITABLE_STATUSES.includes(currentStatus);
+    if (!isEditable && !closeStatusId) {
       return reject("Only tickets with status Open can be edited.");
     }
 
-    // Department (inactive is rejected only when newly picked)
-    const deptRows: any[] = await selectWithJoins(
-      "department",
-      [],
-      { departmentId: value.departmentId, companyId, delete: 0 },
-      ["departmentId", "status"],
-    );
-    if (!deptRows.length) return reject("Selected department was not found.");
-    if (
-      Number(existing.departmentId) !== value.departmentId &&
-      deptRows[0].status !== "Active"
-    ) {
-      return reject("Selected department is inactive.");
-    }
-
-    // Category must belong to the department
-    const catRows: any[] = await selectWithJoins(
-      "ticketcategory",
-      [],
-      { ticketCategoryId: value.categoryId, companyId, delete: 0 },
-      ["ticketCategoryId", "departmentId", "status"],
-    );
-    if (!catRows.length) return reject("Selected category was not found.");
-    if (
-      Number(existing.ticketCategoryId) !== value.categoryId &&
-      catRows[0].status !== "Active"
-    ) {
-      return reject("Selected category is inactive.");
-    }
-    if (Number(catRows[0].departmentId) !== value.departmentId) {
-      return reject("Selected category does not belong to the department.");
-    }
-
-    // ticketNo, ticketCode, status and createdBy are not changed on update
+    // ticketNo, ticketCode and createdBy are not changed on update
     const values: Record<string, unknown> = {
-      departmentId: value.departmentId,
-      ticketCategoryId: value.categoryId,
-      subject: value.subject,
-      issueDescription: value.issueDescription,
       updatedBy: String(employeeId),
       updated: new Date(),
     };
-    if (req.file) values.attachment = req.file.path.replace(/\\/g, "/");
+
+    if (isEditable) {
+      // Department (inactive is rejected only when newly picked)
+      const deptRows: any[] = await selectWithJoins(
+        "department",
+        [],
+        { departmentId: value.departmentId, companyId, delete: 0 },
+        ["departmentId", "status"],
+      );
+      if (!deptRows.length) return reject("Selected department was not found.");
+      if (
+        Number(existing.departmentId) !== value.departmentId &&
+        deptRows[0].status !== "Active"
+      ) {
+        return reject("Selected department is inactive.");
+      }
+
+      // Category must belong to the department
+      const catRows: any[] = await selectWithJoins(
+        "ticketcategory",
+        [],
+        { ticketCategoryId: value.categoryId, companyId, delete: 0 },
+        ["ticketCategoryId", "departmentId", "status"],
+      );
+      if (!catRows.length) return reject("Selected category was not found.");
+      if (
+        Number(existing.ticketCategoryId) !== value.categoryId &&
+        catRows[0].status !== "Active"
+      ) {
+        return reject("Selected category is inactive.");
+      }
+      if (Number(catRows[0].departmentId) !== value.departmentId) {
+        return reject("Selected category does not belong to the department.");
+      }
+
+      values.departmentId = value.departmentId;
+      values.ticketCategoryId = value.categoryId;
+      values.subject = value.subject;
+      values.issueDescription = value.issueDescription;
+      if (req.file) values.attachment = req.file.path.replace(/\\/g, "/");
+    } else {
+      // Not editable: ignore any uploaded file
+      removeUploaded(req.file);
+    }
+
+    if (closeStatusId) values.ticketStatusId = closeStatusId;
 
     await updateModel("ticket", values, { ticketId, companyId });
 
     // new file saved, so drop the old one
-    if (req.file) removeStoredFile(existing.attachment);
+    if (isEditable && req.file) removeStoredFile(existing.attachment);
 
     return successResponse(res, { ticketId }, "Ticket updated successfully.");
   } catch (error) {

@@ -29,4 +29,7 @@ export const ticketCreateSchema = Joi.object({
 
 export const ticketUpdateSchema = ticketCreateSchema.keys({
   ticketId: requiredId("Ticket"),
+    ticketStatusId: Joi.number().integer().positive().optional().messages({
+    "number.base": "Invalid status",
+  }),
 });

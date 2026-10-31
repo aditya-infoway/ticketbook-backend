@@ -22,6 +22,7 @@ import defineticketstatus from "./ticketstatus";
 import defineticket from "./ticket";
 import definecontractordepartment from "./contractordepartment";
 import definecontractor from "./contractor";
+import defineticketassign from "./ticketassign";
 
 const sequelize = new Sequelize(
   dbConfig.DB as string,
@@ -59,6 +60,7 @@ db.ticketstatus = defineticketstatus(sequelize);
 db.ticket = defineticket(sequelize);
 db.contractordepartment = definecontractordepartment(sequelize);
 db.contractor = definecontractor(sequelize);
+db.ticketassign = defineticketassign(sequelize);
 
 db.branch = definebranch(sequelize);
 db.employeetype = defineemployeetype(sequelize);
