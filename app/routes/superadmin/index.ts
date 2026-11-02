@@ -15,6 +15,8 @@ import ticketcategoryRoutes from "./ticketcategory.routes";
 import ticketstatusRoutes from "./ticketstatus.routes";
 import contractordepartmentRoutes from "./contractordepartment.routes";
 import contractorRoutes from "./contractor.routes";
+import areamanagerRoutes from "./areamanager.routes";
+import branchmanagerRoutes from "./branchmanager.routes";
 
 import superadminticketRoutes from "./superadminticket.routes";
 export default (app: Application): void => {
@@ -34,4 +36,6 @@ export default (app: Application): void => {
   contractordepartmentRoutes(app);
   contractorRoutes(app);
   superadminticketRoutes(app);
+  areamanagerRoutes(app);
+  branchmanagerRoutes(app);
 };
