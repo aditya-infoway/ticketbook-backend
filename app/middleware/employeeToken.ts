@@ -22,6 +22,16 @@ export const checkContractorToken = async (token: string) => {
     ["companyId", "contractorId", "contractorName", "email", "tokenDate"],
   );
 };
+
+export const checkAreaManagerToken = async (token: string) => {
+  return await selectWithJoins(
+    "areamanager",
+    [],
+    { token, delete: 0, status: "Active",},
+    ["companyId", "areaManagerId", "name", "email", "tokenDate"],
+  );
+};
+
 // Use on employee-panel routes: sets req.employeeId and req.companyId
 export const employeeAuth = async (
   req: Request,
@@ -54,6 +64,16 @@ export const employeeAuth = async (
       (req as any).contractorId = contractors[0].contractorId;
       (req as any).companyId = contractors[0].companyId;
       (req as any).isContractor = true;
+      return next();
+    }
+
+    // 3. Area manager
+    const managers: any[] = await checkAreaManagerToken(token);
+
+    if (managers.length && managers[0].tokenDate === todayIST()) {
+      (req as any).areaManagerId = managers[0].areaManagerId;
+      (req as any).companyId = managers[0].companyId;
+      (req as any).isAreaManager = true;
       return next();
     }
 
