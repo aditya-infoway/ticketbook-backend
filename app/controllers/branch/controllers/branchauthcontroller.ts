@@ -33,7 +33,13 @@ const getCompanyFinancialYears = async (
     "financialyear",
     [],
     { companyId, delete: 0 },
-    ["financialYearId", "companyDetailsId", "companyId", "startDate", "endDate"],
+    [
+      "financialYearId",
+      "companyDetailsId",
+      "companyId",
+      "startDate",
+      "endDate",
+    ],
   );
 
   const time = (value: any) => new Date(value).getTime() || 0;
