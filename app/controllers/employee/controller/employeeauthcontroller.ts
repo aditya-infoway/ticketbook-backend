@@ -90,7 +90,6 @@ export const employeeLogin = async (
 
     let user = rows[0];
     let isContractor = false;
-    let isAreaManager = false;
 
     // ---------- 2. If no employee → try Contractor ----------
     if (!user || !user.password) {
@@ -113,22 +112,6 @@ export const employeeLogin = async (
       isContractor = true;
     }
 
-    // ---------- 3. Still nothing → try Area Manager ----------
-    if (!user || !user.password) {
-      rows = await selectWithJoins("areamanager", [], { email, delete: 0 }, [
-        "areaManagerId",
-        "companyId",
-        "name",
-        "email",
-        "password",
-        "status",
-      ]);
-
-      user = rows[0];
-      isContractor = false;
-      isAreaManager = true;
-    }
-
     // ---------- Common password check ----------
     if (!user || !user.password) {
       await bcrypt.compare(password, DUMMY_HASH);
@@ -140,14 +123,7 @@ export const employeeLogin = async (
     }
 
     // ---------- Status checks ----------
-    if (isAreaManager) {
-      if (user.status !== "Active") {
-        return errorResponse(
-          res,
-          "Your account is inactive. Please contact the administrator.",
-        );
-      }
-    } else if (isContractor) {
+    if (isContractor) {
       if (String(user.status || "").toUpperCase() !== "ACTIVE") {
         return errorResponse(
           res,
@@ -211,9 +187,7 @@ export const employeeLogin = async (
 
     // ---------- Role name ----------
     let roleName = "";
-    if (isAreaManager) {
-      roleName = "area manager";
-    } else if (isContractor) {
+    if (isContractor) {
       roleName = "contractor";
     } else if (user.roleId) {
       const roles: any[] = await selectWithJoins(
@@ -227,30 +201,18 @@ export const employeeLogin = async (
     // ---------- Generate token ----------
     const token = jwt.sign(
       {
-        ...(isAreaManager
-          ? { areaManagerId: user.areaManagerId }
-          : isContractor
-            ? { contractorId: user.contractorId }
-            : { employeeId: user.employeeId }),
+        ...(isContractor
+          ? { contractorId: user.contractorId }
+          : { employeeId: user.employeeId }),
         companyId: user.companyId,
-        role: isAreaManager
-          ? "areaManager"
-          : isContractor
-            ? "contractor"
-            : "employee",
+        role: isContractor ? "contractor" : "employee",
       },
       process.env.JWT_SECRET!,
       { expiresIn: "12h" },
     );
 
     // Optional: update token on the respective table
-    if (isAreaManager) {
-      await updateModel(
-        "areamanager",
-        { token, tokenDate: todayIST() },
-        { areaManagerId: user.areaManagerId, companyId: user.companyId },
-      );
-    } else if (isContractor) {
+    if (isContractor) {
       await updateModel(
         "contractor",
         { token, tokenDate: todayIST() },
@@ -267,20 +229,15 @@ export const employeeLogin = async (
     // ---------- Response ----------
     const responseData: any = {
       token,
-      mail: isContractor || isAreaManager ? user.email : user.officialEmail,
+      email: isContractor ? user.email : user.officialEmail,
       companyId: user.companyId,
       companyName: company.companyName,
       financialYears, // <- wapas
       roleName,
       isContractor, // useful on frontend
-      isAreaManager,
     };
 
-    if (isAreaManager) {
-      responseData.areaManagerId = user.areaManagerId;
-      responseData.areaManagerName = user.name;
-      responseData.role = "areaManager";
-    } else if (isContractor) {
+    if (isContractor) {
       responseData.contractorId = user.contractorId;
       responseData.contractorName = user.contractorName;
       responseData.role = "contractor";
