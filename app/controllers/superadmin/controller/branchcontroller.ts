@@ -155,39 +155,42 @@ const validateRegion = async (
 };
 
 // Manager active employee ho aur uska role sahi ho
-const checkManager = async (
+// Manager active employee ho aur uska role sahi ho
+const checkBranchManager = async (
   companyId: Id,
-  employeeId: number | null,
-  roleName: string,
+  branchManagerId: number | null,
+  currentBranchId?: number | null, // Renamed to clarify it's the branch being edited
 ): Promise<string | null> => {
-  if (!employeeId) return null; // optional
+  if (!branchManagerId) return null;
 
-  const emps: any[] = await selectWithJoins(
-    "employee",
+  const rows: any[] = await selectWithJoins(
+    "branchmanager",
     [],
-    { employeeId, companyId, employmentStatus: "Active", delete: 0 },
-    ["employeeId", "roleId"],
+    {
+      branchManagerId,
+      companyId,
+      status: "Active",
+      delete: 0,
+    },
+    ["branchManagerId", "branchId"],
   );
-  if (!emps.length) return `Selected ${roleName} was not found or is inactive.`;
 
-  const roles: any[] = emps[0].roleId
-    ? await selectWithJoins(
-        "role",
-        [],
-        { roleId: emps[0].roleId, companyId, delete: 0 },
-        ["roleName"],
-      )
-    : [];
-
-  if (
-    !roles.length ||
-    String(roles[0].roleName).trim().toLowerCase() !== roleName.toLowerCase()
-  ) {
-    return `Selected employee is not a ${roleName}.`;
+  if (!rows.length) {
+    return "Selected Branch Manager was not found or is inactive.";
   }
+
+  const assignedBranchId = rows[0].branchId;
+
+  // Rule: A manager can only be assigned to ONE branch at a time.
+  if (assignedBranchId) {
+    // If creating (currentBranchId is null) OR editing a different branch
+    if (!currentBranchId || Number(assignedBranchId) !== Number(currentBranchId)) {
+      return "This Branch Manager is already assigned to another branch. Please select a different manager.";
+    }
+  }
+
   return null;
 };
-
 // Unique Branch No (prefix + FY + running number), retry on collision
 const generateUniqueBranchNo = async (
   companyId: number,
@@ -304,8 +307,12 @@ export const createBranch = async (
     const areaManagerId = toNumberOrNull(body.areaManagerId);
 
     const managerError =
-      (await checkManager(companyId, branchManagerId, "Branch Manager")) ||
-      (await checkManager(companyId, areaManagerId, "Area Manager"));
+      (await checkBranchManager(companyId, branchManagerId, null)) ||
+      (await checkAreaManager(companyId, areaManagerId, regionId));
+
+    if (managerError) {
+      return errorResponse(res, managerError);
+    }
     if (managerError) return errorResponse(res, managerError);
 
     const branchNo = await generateUniqueBranchNo(
@@ -431,18 +438,30 @@ export const getBranchList = async (
       regionMap[String(r.regionId)] = r.regionName || "";
     });
 
-    // Manager names
-    const empRows: any[] = await selectWithJoins(
-      "employee",
+    // Branch Manager names
+    const branchManagerRows: any[] = await selectWithJoins(
+      "branchmanager",
       [],
       { companyId, delete: 0 },
-      ["employeeId", "employeeName"],
+      ["branchManagerId", "name"],
     );
-    const empMap: Record<string, string> = {};
-    empRows.forEach((e) => {
-      empMap[String(e.employeeId)] = e.employeeName;
+
+    const branchManagerMap: Record<string, string> = {};
+
+    branchManagerRows.forEach((manager) => {
+      branchManagerMap[String(manager.branchManagerId)] = manager.name || "";
     });
 
+    const areaManagerRows: any[] = await selectWithJoins(
+      "areamanager",
+      [],
+      { companyId, delete: 0 },
+      ["areaManagerId", "name"],
+    );
+    const areaManagerMap: Record<string, string> = {};
+    areaManagerRows.forEach((m) => {
+      areaManagerMap[String(m.areaManagerId)] = m.name;
+    });
     const data = rows.map((r) => ({
       id: String(r.branchId),
       branchId: r.branchId,
@@ -464,10 +483,10 @@ export const getBranchList = async (
       branchManagerId: r.branchManagerId ?? null,
       areaManagerId: r.areaManagerId ?? null,
       branchManager: r.branchManagerId
-        ? empMap[String(r.branchManagerId)] || ""
+        ? branchManagerMap[String(r.branchManagerId)] || ""
         : "",
       areaManager: r.areaManagerId
-        ? empMap[String(r.areaManagerId)] || ""
+        ? areaManagerMap[String(r.areaManagerId)] || ""
         : "",
       openingDate: r.openingDate || "",
       workingHours: r.workingHours || "",
@@ -506,7 +525,13 @@ export const updateBranch = async (
       "branch",
       [],
       { branchId, companyId, delete: 0 },
-      ["branchId", "branchManagerId", "areaManagerId", "profilePhoto"],
+      [
+        "branchId",
+        "regionId",
+        "branchManagerId",
+        "areaManagerId",
+        "profilePhoto",
+      ],
     );
     if (!existing.length) return requiredmessage(res, "Branch not found.");
 
@@ -529,12 +554,16 @@ export const updateBranch = async (
 
     const managerError =
       (branchManagerId !== (existing[0].branchManagerId ?? null)
-        ? await checkManager(companyId, branchManagerId, "Branch Manager")
+        ? await checkBranchManager(companyId, branchManagerId, branchId)
         : null) ||
-      (areaManagerId !== (existing[0].areaManagerId ?? null)
-        ? await checkManager(companyId, areaManagerId, "Area Manager")
+      (areaManagerId !== (existing[0].areaManagerId ?? null) ||
+      regionId !== (existing[0].regionId ?? null)
+        ? await checkAreaManager(companyId, areaManagerId, regionId)
         : null);
-    if (managerError) return errorResponse(res, managerError);
+
+    if (managerError) {
+      return errorResponse(res, managerError);
+    }
 
     const creator = getCreator(req, companyId);
 
@@ -616,4 +645,27 @@ export const deleteBranch = async (
     console.error("deleteBranch error:", error);
     return errorResponse(res, "Something Went Wrong", error);
   }
+};
+
+// Area manager must be an Active area manager of this company, working in the branch's region
+const checkAreaManager = async (
+  companyId: Id,
+  areaManagerId: number | null,
+  regionId: number | null,
+): Promise<string | null> => {
+  if (!areaManagerId) return null; // optional
+
+  const rows: any[] = await selectWithJoins(
+    "areamanager",
+    [],
+    { areaManagerId, companyId, status: "Active", delete: 0 },
+    ["areaManagerId", "areaId"],
+  );
+  if (!rows.length)
+    return "Selected area manager was not found or is inactive.";
+
+  if (regionId && Number(rows[0].areaId) !== regionId) {
+    return "Selected area manager does not belong to the selected region / area.";
+  }
+  return null;
 };
