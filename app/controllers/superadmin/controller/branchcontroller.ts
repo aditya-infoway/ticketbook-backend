@@ -155,10 +155,11 @@ const validateRegion = async (
 };
 
 // Manager active employee ho aur uska role sahi ho
+// Manager active employee ho aur uska role sahi ho
 const checkBranchManager = async (
   companyId: Id,
   branchManagerId: number | null,
-  branchId?: number | null,
+  currentBranchId?: number | null, // Renamed to clarify it's the branch being edited
 ): Promise<string | null> => {
   if (!branchManagerId) return null;
 
@@ -178,14 +179,18 @@ const checkBranchManager = async (
     return "Selected Branch Manager was not found or is inactive.";
   }
 
-  // When updating an existing branch, ensure the manager belongs to it.
-  if (branchId && Number(rows[0].branchId) !== Number(branchId)) {
-    return "Selected Branch Manager does not belong to this branch.";
+  const assignedBranchId = rows[0].branchId;
+
+  // Rule: A manager can only be assigned to ONE branch at a time.
+  if (assignedBranchId) {
+    // If creating (currentBranchId is null) OR editing a different branch
+    if (!currentBranchId || Number(assignedBranchId) !== Number(currentBranchId)) {
+      return "This Branch Manager is already assigned to another branch. Please select a different manager.";
+    }
   }
 
   return null;
 };
-
 // Unique Branch No (prefix + FY + running number), retry on collision
 const generateUniqueBranchNo = async (
   companyId: number,
@@ -302,7 +307,7 @@ export const createBranch = async (
     const areaManagerId = toNumberOrNull(body.areaManagerId);
 
     const managerError =
-      (await checkBranchManager(companyId, branchManagerId)) ||
+      (await checkBranchManager(companyId, branchManagerId, null)) ||
       (await checkAreaManager(companyId, areaManagerId, regionId));
 
     if (managerError) {
