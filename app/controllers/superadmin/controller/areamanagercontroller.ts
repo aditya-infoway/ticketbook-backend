@@ -161,6 +161,33 @@ const validateArea = async (
   return null;
 };
 
+// Check if the selected area already has an active manager
+const checkAreaAvailability = async (
+  companyId: Id,
+  areaId: number,
+  currentManagerId?: number | null,
+): Promise<string | null> => {
+  const rows: any[] = await selectWithJoins(
+    "areamanager",
+    [],
+    { areaId, companyId, delete: 0 },
+    ["areaManagerId", "name", "status"],
+  );
+
+  for (const row of rows) {
+    if (
+      currentManagerId &&
+      String(row.areaManagerId) === String(currentManagerId)
+    ) {
+      continue;
+    }
+    if (row.status === "Active") {
+      return `The selected Area is already assigned to Area Manager: ${row.name}. Please choose a different area.`;
+    }
+  }
+  return null;
+};
+
 // Unique Area Manager No (prefix + FY + running number), retry on collision
 const generateUniqueAreaManagerNo = async (
   companyId: number,
@@ -276,6 +303,10 @@ export const createAreaManager = async (
 
     const areaError = await validateArea(companyId, areaId);
     if (areaError) return reject(areaError);
+
+    // --- ADD THESE 2 LINES ---
+    const availabilityError = await checkAreaAvailability(companyId, areaId);
+    if (availabilityError) return reject(availabilityError);
 
     const areaManagerNo = await generateUniqueAreaManagerNo(
       Number(companyId),
@@ -465,6 +496,14 @@ export const updateAreaManager = async (
 
     const areaError = await validateArea(companyId, areaId, existing.areaId);
     if (areaError) return reject(areaError);
+
+    // --- ADD THESE 2 LINES ---
+    const availabilityError = await checkAreaAvailability(
+      companyId,
+      areaId,
+      areaManagerId,
+    );
+    if (availabilityError) return reject(availabilityError);
 
     const creator = getCreator(req, companyId);
     const status = body.status || "Active";
