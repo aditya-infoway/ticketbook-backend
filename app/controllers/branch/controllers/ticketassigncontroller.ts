@@ -11,6 +11,19 @@ import {
 import { getFinancialYearById } from "../../../helper/financialYear";
 import { generateVoucherNo } from "../../../helper/billNoGenerator";
 
+const contractorBranchIds = (c: any): number[] => {
+  try {
+    const p = JSON.parse(c.branchIds || "[]");
+    if (Array.isArray(p) && p.length) {
+      return p.map(Number).filter((n) => n > 0);
+    }
+  } catch {}
+  return c.branchId ? [Number(c.branchId)] : [];
+};
+
+const worksInBranch = (c: any, branchId: number): boolean =>
+  contractorBranchIds(c).includes(branchId);
+
 // A ticket can be assigned only after the branch has set its status to "Assigned"
 const ASSIGNABLE_STATUSES = ["assigned"];
 
@@ -151,6 +164,7 @@ export const assignTicket = async (
         "contractorId",
         "contractorName",
         "branchId",
+        "branchIds",
         "contractorDepartmentId",
         "status",
       ],
@@ -162,7 +176,7 @@ export const assignTicket = async (
     if (contractor.status !== "Active") {
       return errorResponse(res, "Selected contractor is inactive.");
     }
-    if (Number(contractor.branchId) !== branchId) {
+    if (!worksInBranch(contractor, branchId)) {
       return errorResponse(
         res,
         "Selected contractor does not belong to this branch.",
@@ -245,10 +259,17 @@ export const getBranchContractors = async (
     const rows: any[] = await selectWithJoins(
       "contractor",
       [],
-      { companyId, branchId, delete: 0, status: "Active" },
-      ["contractorId", "contractorName", "contractorDepartmentId"],
+      { companyId, delete: 0, status: "Active" },
+      [
+        "contractorId",
+        "contractorName",
+        "contractorDepartmentId",
+        "branchId",
+        "branchIds",
+      ],
       [["contractorName", "ASC"]],
     );
+    const branchRows = rows.filter((c) => worksInBranch(c, branchId));
 
     const deptRows: any[] = await selectWithJoins(
       "contractordepartment",

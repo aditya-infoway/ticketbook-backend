@@ -27,7 +27,7 @@ const istDateTime = (value: unknown): string => {
   return `${istDate(d)} ${time}`;
 };
 
-const removeUploaded = (file?: Express.Multer.File) => {
+const removeUploaded = (file?: { path: string }) => {
   if (file?.path) fs.unlink(file.path, () => {});
 };
 
@@ -63,7 +63,7 @@ const getEmployeeContext = async (req: Request) => {
       "employeeName",
       "mobileCountryCode",
       "mobileNumber",
-      "branchId", // <-- add
+      "branchId",
     ],
   );
 
@@ -71,16 +71,17 @@ const getEmployeeContext = async (req: Request) => {
 
   const e = rows[0];
 
-  // Branch name lookup
   let branchName = "";
+  let branchCode = "";
   if (e.branchId) {
     const branchRows: any[] = await selectWithJoins(
       "branch",
       [],
       { branchId: e.branchId, companyId, delete: 0 },
-      ["branchId", "branchName"],
+      ["branchId", "branchName", "branchCode"],
     );
     branchName = branchRows[0]?.branchName || "";
+    branchCode = branchRows[0]?.branchCode || "";
   }
 
   return {
@@ -90,6 +91,7 @@ const getEmployeeContext = async (req: Request) => {
     employeeCode: e.employeeCode as string,
     branchId: e.branchId ? Number(e.branchId) : null,
     branchName,
+    branchCode,
     contactNumber:
       `${e.mobileCountryCode || ""} ${e.mobileNumber || ""}`.trim(),
   };
@@ -247,6 +249,7 @@ export const getTicketFormData = async (
           employeeName: ctx.employeeName,
           employeeCode: ctx.employeeCode,
           branchName: ctx.branchName,
+          branchCode: ctx.branchCode,
           contactNumber: ctx.contactNumber,
         },
         departments: depts.map((d) => ({
@@ -273,7 +276,7 @@ export const getTicketFormData = async (
 
 // ---- Create Ticket (multipart: optional "attachment" file) ----
 export const createTicket = async (
-  req: Request,
+  req: Request & { file?: { path: string } },
   res: Response,
 ): Promise<any> => {
   const reject = (message: string) => {
@@ -423,32 +426,37 @@ export const getTicketList = async (
       ],
       [["ticketId", "DESC"]],
     );
-
     const mapOf = async (
       table: string,
       idCol: string,
       nameCol: string,
-    ): Promise<Record<string, string>> => {
+      extraCols: string[] = [],
+    ): Promise<Record<string, any>> => {
       const list: any[] = await selectWithJoins(
         table,
         [],
         { companyId, delete: 0 },
-        [idCol, nameCol],
+        [idCol, nameCol, ...extraCols],
       );
-      const map: Record<string, string> = {};
+      const map: Record<string, any> = {};
       list.forEach((r) => {
-        map[String(r[idCol])] = r[nameCol];
+        map[String(r[idCol])] = extraCols.length
+          ? {
+              name: r[nameCol],
+              ...Object.fromEntries(extraCols.map((c) => [c, r[c]])),
+            }
+          : r[nameCol];
       });
       return map;
     };
 
+    // later:
     const [deptMap, catMap, statusMap, branchMap] = await Promise.all([
       mapOf("department", "departmentId", "departmentName"),
       mapOf("ticketcategory", "ticketCategoryId", "categoryName"),
       mapOf("ticketstatus", "ticketStatusId", "statusName"),
-      mapOf("branch", "branchId", "branchName"),
+      mapOf("branch", "branchId", "branchName", ["branchCode"]),
     ]);
-
     const search = (q.search || "").trim().toLowerCase();
 
     const data = rows
@@ -489,7 +497,18 @@ export const getTicketList = async (
 
         employeeName: ctx.employeeName,
         employeeCode: ctx.employeeCode,
-        branchName: branchMap[String(r.branchId)] || ctx.branchName,
+        branchName:
+          (branchMap[String(r.branchId)] as any)?.name || ctx.branchName,
+        branchCode:
+          (branchMap[String(r.branchId)] as any)?.branchCode ||
+          ctx.branchCode ||
+          "",
+        branchDisplay: (() => {
+          const b = branchMap[String(r.branchId)] as any;
+          const name = b?.name || ctx.branchName || "";
+          const code = b?.branchCode || ctx.branchCode || "";
+          return code ? `${name} (${code})` : name;
+        })(),
         departmentId: String(r.departmentId),
         departmentName: deptMap[String(r.departmentId)] || "",
         categoryId: String(r.ticketCategoryId),
@@ -514,7 +533,7 @@ export const getTicketList = async (
 
 // ---- Update Ticket (multipart: optional new "attachment" file) ----
 export const updateTicket = async (
-  req: Request,
+  req: Request & { file?: { path: string } },
   res: Response,
 ): Promise<any> => {
   const reject = (message: string) => {
@@ -561,6 +580,11 @@ export const updateTicket = async (
       .trim()
       .toLowerCase();
 
+    // Only tickets in these statuses can still be fully edited by the employee
+    const EDITABLE_STATUSES = ["open"];
+
+    // ... inside updateTicket, after loading existing + currentStatus ...
+
     if (currentStatus === "closed") {
       return reject("This ticket is already closed.");
     }
@@ -584,8 +608,12 @@ export const updateTicket = async (
     }
 
     const isEditable = EDITABLE_STATUSES.includes(currentStatus);
+
+    // Not Open and not closing → reject with a clear message
     if (!isEditable && !closeStatusId) {
-      return reject("Only tickets with status Open can be edited.");
+      return reject(
+        "Only Open tickets can be fully edited. You can still close this ticket by setting status to Closed.",
+      );
     }
 
     // ticketNo, ticketCode and createdBy are not changed on update
@@ -595,7 +623,7 @@ export const updateTicket = async (
     };
 
     if (isEditable) {
-      // Department (inactive is rejected only when newly picked)
+      // Department / Category / subject / description / attachment – same as before
       const deptRows: any[] = await selectWithJoins(
         "department",
         [],
@@ -610,7 +638,6 @@ export const updateTicket = async (
         return reject("Selected department is inactive.");
       }
 
-      // Category must belong to the department
       const catRows: any[] = await selectWithJoins(
         "ticketcategory",
         [],
@@ -634,7 +661,7 @@ export const updateTicket = async (
       values.issueDescription = value.issueDescription;
       if (req.file) values.attachment = req.file.path.replace(/\\/g, "/");
     } else {
-      // Not editable: ignore any uploaded file
+      // Assigned / other non-Open: ignore field changes & any uploaded file
       removeUploaded(req.file);
     }
 
@@ -642,7 +669,6 @@ export const updateTicket = async (
 
     await updateModel("ticket", values, { ticketId, companyId });
 
-    // new file saved, so drop the old one
     if (isEditable && req.file) removeStoredFile(existing.attachment);
 
     return successResponse(res, { ticketId }, "Ticket updated successfully.");

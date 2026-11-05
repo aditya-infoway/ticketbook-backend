@@ -11,7 +11,32 @@ const requiredId = (label: string) =>
       "number.positive": `${label} is required`,
     });
 
-// Body can arrive as multipart strings; Joi converts "3" to 3
+// Helper for array of IDs (comes as JSON string from FormData)
+const idArray = (label: string) =>
+  Joi.alternatives()
+    .try(
+      Joi.array().items(Joi.number().integer().positive()).min(1),
+      Joi.string().custom((value, helpers) => {
+        try {
+          const parsed = JSON.parse(value);
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            return helpers.error("any.invalid");
+          }
+          const nums = parsed.map(Number);
+          if (nums.some((n) => isNaN(n) || n <= 0)) {
+            return helpers.error("any.invalid");
+          }
+          return nums;
+        } catch {
+          return helpers.error("any.invalid");
+        }
+      }),
+    )
+    .messages({
+      "any.invalid": `At least one ${label} is required`,
+      "array.min": `At least one ${label} is required`,
+    });
+
 export const contractorCreateSchema = Joi.object({
   financialYearId: Joi.alternatives()
     .try(Joi.number().integer(), Joi.string().trim())
@@ -41,7 +66,11 @@ export const contractorCreateSchema = Joi.object({
   }),
 
   areaId: requiredId("Area"),
-  branchId: requiredId("Branch"),
+
+  // Support both old single + new multi
+  branchId: Joi.number().integer().positive().optional(),
+  branchIds: idArray("Branch").optional(),
+
   contractorDepartmentId: Joi.number()
     .integer()
     .positive()
@@ -61,15 +90,13 @@ export const contractorCreateSchema = Joi.object({
     "any.only": "Passwords do not match",
     "any.required": "Confirm password is required",
   }),
-});
+}).or("branchId", "branchIds"); // at least one of them required
 
-// On update the password is optional (blank = keep current).
-// The match with confirmPassword is checked in the controller.
 export const contractorUpdateSchema = contractorCreateSchema.keys({
   contractorId: requiredId("Contractor"),
   password: Joi.string().min(6).max(100).optional().messages({
     "string.min": "Password must be at least 6 characters",
   }),
   confirmPassword: Joi.string().allow("", null).optional(),
-  existingDocuments: Joi.string().allow("").optional(), // JSON array string
+  existingDocuments: Joi.string().allow("").optional(),
 });
