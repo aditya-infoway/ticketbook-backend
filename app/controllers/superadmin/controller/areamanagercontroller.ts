@@ -36,6 +36,9 @@ interface AreaManagerBody {
   confirmPassword?: string;
 }
 
+type UploadedFile = { path: string };
+type AreaManagerRequest = Request & { file?: UploadedFile };
+
 // ---- Get company from token ----
 const getCompanyIdFromToken = async (req: Request): Promise<Id | null> => {
   const token =
@@ -68,7 +71,7 @@ const getCreator = (req: Request, companyId: Id) => {
   };
 };
 
-const removeUploaded = (file?: Express.Multer.File) => {
+const removeUploaded = (file?: UploadedFile) => {
   if (file?.path) fs.unlink(file.path, () => {});
 };
 
@@ -270,7 +273,7 @@ export const getNextAreaManagerNo = async (
 
 // ---- Create (multipart: optional "profilePhoto" file) ----
 export const createAreaManager = async (
-  req: Request,
+  req: AreaManagerRequest,
   res: Response,
 ): Promise<any> => {
   const reject = (message: string) => {
@@ -455,7 +458,7 @@ export const getAreaManagerList = async (
 
 // ---- Update (also used for Activate / Deactivate) ----
 export const updateAreaManager = async (
-  req: Request,
+  req: AreaManagerRequest,
   res: Response,
 ): Promise<any> => {
   const reject = (message: string) => {

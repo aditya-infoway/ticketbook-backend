@@ -26,6 +26,7 @@ interface ContractorBody {
   address?: string | null;
   areaId: Id;
   branchId: Id;
+  branchIds?: string | number[];
   contractorDepartmentId?: Id;
   status?: string;
   password?: string;
@@ -123,14 +124,36 @@ const findDuplicate = async (
   return null;
 };
 
+// ---------- Helper: normalize branch IDs ----------
+const normalizeBranchIds = (body: ContractorBody): number[] => {
+  if (body.branchIds) {
+    if (Array.isArray(body.branchIds)) {
+      return body.branchIds.map(Number).filter((n) => !isNaN(n) && n > 0);
+    }
+    try {
+      const parsed = JSON.parse(String(body.branchIds));
+      if (Array.isArray(parsed)) {
+        return parsed.map(Number).filter((n) => !isNaN(n) && n > 0);
+      }
+    } catch {}
+  }
+  if (body.branchId) {
+    const id = Number(body.branchId);
+    if (!isNaN(id) && id > 0) return [id];
+  }
+  return [];
+};
+
 // Area (region) and branch must exist in this company; branch must be in the area.
 // Inactive records are rejected only when newly picked.
 const validateLinks = async (
   companyId: Id,
   areaId: number,
-  branchId: number,
+  branchIds: number[],
   existing?: { areaId?: number | null; branchId?: number | null },
 ): Promise<string | null> => {
+  if (!branchIds.length) return "At least one branch is required.";
+
   const regionRows: any[] = await selectWithJoins(
     "region",
     [],
@@ -145,25 +168,29 @@ const validateLinks = async (
     return "Selected area is inactive.";
   }
 
-  const branchRows: any[] = await selectWithJoins(
-    "branch",
-    [],
-    { branchId, companyId, delete: 0 },
-    ["branchId", "regionId", "status"],
-  );
-  if (!branchRows.length) return "Selected branch was not found.";
-  if (
-    Number(existing?.branchId) !== branchId &&
-    branchRows[0].status !== "Active"
-  ) {
-    return "Selected branch is inactive.";
-  }
-  if (Number(branchRows[0].regionId) !== areaId) {
-    return "Selected branch does not belong to the selected area.";
+  for (const branchId of branchIds) {
+    const branchRows: any[] = await selectWithJoins(
+      "branch",
+      [],
+      { branchId, companyId, delete: 0 },
+      ["branchId", "regionId", "status"],
+    );
+    if (!branchRows.length)
+      return `Selected branch (${branchId}) was not found.`;
+    if (
+      Number(existing?.branchId) !== branchId &&
+      branchRows[0].status !== "Active"
+    ) {
+      return `Selected branch (${branchId}) is inactive.`;
+    }
+    if (Number(branchRows[0].regionId) !== areaId) {
+      return `Selected branch does not belong to the selected area.`;
+    }
   }
 
   return null;
 };
+
 // Department optional hai; diya ho to isi company ka hona chahiye
 const validateDepartment = async (
   companyId: Id,
@@ -184,6 +211,7 @@ const validateDepartment = async (
   }
   return null;
 };
+
 // Unique Contractor No (prefix + FY + running number), retry on collision
 const generateUniqueContractorNo = async (
   companyId: number,
@@ -230,7 +258,8 @@ export const createContractor = async (
 
     const body = req.body as ContractorBody;
     const areaId = Number(body.areaId);
-    const branchId = Number(body.branchId);
+    const branchIds = normalizeBranchIds(body);
+    const primaryBranchId = branchIds[0];
 
     const fy: any = await getFinancialYearById(
       body.financialYearId as any,
@@ -245,8 +274,9 @@ export const createContractor = async (
     );
     if (duplicate) return reject(duplicate);
 
-    const linkError = await validateLinks(companyId, areaId, branchId);
+    const linkError = await validateLinks(companyId, areaId, branchIds);
     if (linkError) return reject(linkError);
+
     const departmentId = body.contractorDepartmentId
       ? Number(body.contractorDepartmentId)
       : null;
@@ -276,7 +306,8 @@ export const createContractor = async (
       specialization: toText(body.specialization),
       address: toText(body.address),
       areaId,
-      branchId,
+      branchId: primaryBranchId, // keep old column working
+      branchIds: JSON.stringify(branchIds),
       contractorDepartmentId: departmentId,
       password: await bcrypt.hash(String(body.password), 10),
       documents: JSON.stringify(documents),
@@ -331,7 +362,8 @@ export const getContractorList = async (
         "address",
         "areaId",
         "branchId",
-          "contractorDepartmentId",
+        "branchIds",
+        "contractorDepartmentId",
         "documents",
         "status",
         "createdBy",
@@ -368,33 +400,47 @@ export const getContractorList = async (
     ]);
 
     // password is never returned
-    const data = rows.map((r) => ({
-      id: String(r.contractorId),
-      contractorId: r.contractorId,
-      financialYearId: r.financialYearId,
-      contractorNo: r.contractorNo || "",
-      contractorName: r.contractorName,
-      companyName: r.companyName || "",
-      mobileNumber: r.mobileNumber,
-      email: r.email || "",
-      specialization: r.specialization || "",
-      address: r.address || "",
-      areaId: String(r.areaId),
-      areaName: areaMap[String(r.areaId)] || "",
-      branchId: String(r.branchId),
-      branchName: branchMap[String(r.branchId)] || "",
-      contractorDepartmentId: r.contractorDepartmentId
-        ? String(r.contractorDepartmentId)
-        : "",
-      departmentName: deptMap[String(r.contractorDepartmentId)] || "",
-      documents: parseDocs(r.documents),
-      status: r.status,
-      createdBy: r.createdBy || "",
-      createdType: r.createdType || "",
-      updatedBy: r.updatedBy || "",
-      created: r.created,
-      updated: r.updated,
-    }));
+    const data = rows.map((r) => {
+      let ids: string[] = [];
+      try {
+        const p = JSON.parse(r.branchIds || "[]");
+        if (Array.isArray(p)) ids = p.map(String);
+      } catch {}
+      if (!ids.length && r.branchId) ids = [String(r.branchId)];
+
+      return {
+        id: String(r.contractorId),
+        contractorId: r.contractorId,
+        financialYearId: r.financialYearId,
+        contractorNo: r.contractorNo || "",
+        contractorName: r.contractorName,
+        companyName: r.companyName || "",
+        mobileNumber: r.mobileNumber,
+        email: r.email || "",
+        specialization: r.specialization || "",
+        address: r.address || "",
+        areaId: String(r.areaId),
+        areaName: areaMap[String(r.areaId)] || "",
+        branchId: String(r.branchId),
+        branchIds: ids,
+        branchNames: ids.map((id) => branchMap[id]).filter(Boolean),
+        branchName: ids
+          .map((id) => branchMap[id])
+          .filter(Boolean)
+          .join(", "),
+        contractorDepartmentId: r.contractorDepartmentId
+          ? String(r.contractorDepartmentId)
+          : "",
+        departmentName: deptMap[String(r.contractorDepartmentId)] || "",
+        documents: parseDocs(r.documents),
+        status: r.status,
+        createdBy: r.createdBy || "",
+        createdType: r.createdType || "",
+        updatedBy: r.updatedBy || "",
+        created: r.created,
+        updated: r.updated,
+      };
+    });
 
     return successResponse(res, data, "Contractors fetched successfully.");
   } catch (error) {
@@ -425,6 +471,9 @@ export const updateContractor = async (
     const areaId = Number(body.areaId);
     const branchId = Number(body.branchId);
 
+    const branchIds = normalizeBranchIds(body);
+    const primaryBranchId = branchIds[0];
+
     const existingRows: any[] = await selectWithJoins(
       "contractor",
       [],
@@ -452,7 +501,7 @@ export const updateContractor = async (
     );
     if (duplicate) return reject(duplicate);
 
-    const linkError = await validateLinks(companyId, areaId, branchId, {
+    const linkError = await validateLinks(companyId, areaId, branchIds, {
       areaId: existing.areaId,
       branchId: existing.branchId,
     });
@@ -488,7 +537,8 @@ export const updateContractor = async (
       specialization: toText(body.specialization),
       address: toText(body.address),
       areaId,
-      branchId,
+      branchId: primaryBranchId,
+      branchIds: JSON.stringify(branchIds),
       documents: JSON.stringify([...keptDocs, ...newDocs]),
       status: body.status || "Active",
       updatedBy: creator.by,
