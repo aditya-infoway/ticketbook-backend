@@ -4,9 +4,12 @@ import authRoutes from "./branch.routes";
 import branchProfileRoutes from "./branchprofile.route";
 import branchticketRoutes from "./branchticket.routes";
 import branchcontractorreviewRoutes from "./branchcontractorreview.routes";
+import employeeRoutes from "./employee.routes";
+
 export default (app: Application): void => {
   authRoutes(app);
   branchProfileRoutes(app);
   branchticketRoutes(app);
   branchcontractorreviewRoutes(app);
+  employeeRoutes(app);
 };

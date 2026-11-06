@@ -10,6 +10,7 @@ import {
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
 import { generateVoucherNo } from "../../../helper/billNoGenerator";
+import { getCompanyIdFromAnyToken } from "../../../helper/tokenHelper";
 
 // ---- Types ----
 type Id = string | number;
@@ -329,7 +330,7 @@ export const getDepartmentList = async (
   res: Response,
 ): Promise<any> => {
   try {
-    const companyId = await getCompanyIdFromToken(req);
+    const companyId = await getCompanyIdFromAnyToken(req);
 
     if (!companyId) {
       return requiredmessage(
@@ -338,7 +339,7 @@ export const getDepartmentList = async (
       );
     }
 
-       const rows = (await selectWithJoins(
+    const rows = (await selectWithJoins(
       "department",
       [],
       { companyId, delete: 0 },
@@ -443,14 +444,12 @@ export const getDepartmentList = async (
         console.error("Error fetching companies:", err);
       }
     }
-   // ---- Employee IDs + empMap block poora hata do ----
+    // ---- Employee IDs + empMap block poora hata do ----
 
-const who = (value: string | null): string => {
-  if (!value) return "";
-  return companyMap[String(value)] || String(value);
-};
-
-
+    const who = (value: string | null): string => {
+      if (!value) return "";
+      return companyMap[String(value)] || String(value);
+    };
 
     const data = rows.map((r) => ({
       id: String(r.departmentId),
@@ -469,8 +468,8 @@ const who = (value: string | null): string => {
       scope: r.scope,
       status: r.status,
       displayOrder: r.displayOrder,
-     createdBy: who(r.createdBy),
-updatedBy: who(r.updatedBy),
+      createdBy: who(r.createdBy),
+      updatedBy: who(r.updatedBy),
       created: r.created,
       updated: r.updated,
     }));
