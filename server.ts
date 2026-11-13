@@ -44,8 +44,6 @@ routes(app);
 // set port, listen for requests
 const PORT: number = Number(process.env.PORT) || 8001;
 
-app.listen(PORT, () => {
-  console.log(
-    `⚡️[server]: Server is running at http://localhost:${PORT}`
-  );
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`⚡️[server]: Server is running at http://localhost:${PORT}`);
 });
