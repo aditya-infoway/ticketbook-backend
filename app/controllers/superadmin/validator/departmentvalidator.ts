@@ -11,46 +11,14 @@ export const departmentCreateSchema = Joi.object({
     "any.required": "Financial Year Id is required",
   }),
 
-  departmentCode: Joi.string().trim().max(50).required().messages({
-    "string.empty": "Department code is required",
-    "any.required": "Department code is required",
-  }),
-
   departmentName: Joi.string().trim().max(150).required().messages({
     "string.empty": "Department name is required",
     "any.required": "Department name is required",
   }),
 
-  description: Joi.string().allow(null, "").optional(),
+  status: Joi.string().valid("Active", "Inactive").optional(),
 
-  departmentTypeId: Joi.number().integer().required().messages({
-    "number.base": "Department type is required",
-    "any.required": "Department type is required",
-  }),
-
-  parentDepartmentId: Joi.number()
-    .integer()
-    .allow(null, "")
-    .optional(),
-
-  scope: Joi.string().trim().required().messages({
-    "string.empty": "Department scope is required",
-    "any.required": "Department scope is required",
-  }),
-
-  status: Joi.string()
-    .valid("Active", "Inactive")
-    .optional(),
-
-  displayOrder: Joi.number()
-    .integer()
-    .min(0)
-    .allow(null, "")
-    .optional(),
-
-  createdBy: Joi.alternatives()
-    .try(Joi.number(), Joi.string())
-    .allow(null, ""),
+  createdBy: Joi.alternatives().try(Joi.number(), Joi.string()).allow(null, ""),
 
   createdType: Joi.string().allow(null, ""),
 });

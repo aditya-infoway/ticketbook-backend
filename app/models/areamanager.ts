@@ -46,8 +46,14 @@ export default (sequelize: Sequelize) => {
     },
     email: { type: DataTypes.STRING(150), allowNull: false, field: "email" },
     address: { type: DataTypes.STRING(250), allowNull: true, field: "address" },
-    city: { type: DataTypes.STRING(50), allowNull: true, field: "city" },
-    state: { type: DataTypes.STRING(50), allowNull: true, field: "state" },
+    country: { type: DataTypes.STRING(100), allowNull: true, field: "country" },
+    state: { type: DataTypes.STRING(100), allowNull: true, field: "state" },
+    district: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      field: "district",
+    },
+    city: { type: DataTypes.STRING(100), allowNull: true, field: "city" },
     pinCode: { type: DataTypes.STRING(10), allowNull: true, field: "pinCode" },
 
     // Area = region table
@@ -57,11 +63,7 @@ export default (sequelize: Sequelize) => {
       allowNull: true,
       field: "description",
     },
-    joiningDate: {
-      type: DataTypes.DATEONLY,
-      allowNull: false,
-      field: "joiningDate",
-    },
+  
 
     // Area manager panel login: email + password
     password: {

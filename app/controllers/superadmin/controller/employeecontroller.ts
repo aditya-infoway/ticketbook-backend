@@ -29,15 +29,18 @@ interface EmployeeBody {
   mobileNumber?: string | null;
   alternateCountryCode?: string | null;
   alternateContact?: string | null;
+  country?: string | null;
+  state?: string | null;
+  district?: string | null;
+  city?: string | null;
+  address?: string | null;
+  pinCode?: string | null;
   employeeTypeId?: Id | null;
-  designationId?: Id | null;
-  dateOfJoining?: string | null;
   employmentStatus?: string;
-  employmentEndDate?: string | null;
   remarks?: string | null;
   roleCategoryId?: Id | null;
   roleId?: Id | null;
-    branchId?: Id | null;
+  branchId?: Id | null;
   additionalDepartments?: number[] | string | null;
   password?: string | null;
   confirmPassword?: string | null;
@@ -52,7 +55,7 @@ interface Links {
   employeeTypeId: number | null;
   roleCategoryId: number | null;
   roleId: number | null;
-    branchId: number | null;
+  branchId: number | null;
   departmentIds: number[];
 }
 
@@ -400,21 +403,11 @@ export const createEmployee = async (
       return requiredmessage(res, "Official email already exists.");
     }
 
-    // Employment dates
-    const joining = toDateOrNull(body.dateOfJoining);
-    const endDate = toDateOrNull(body.employmentEndDate);
-    if (joining && endDate && endDate < joining) {
-      return errorResponse(
-        res,
-        "Employment end date cannot be before the date of joining.",
-      );
-    }
-
     const links: Links = {
       employeeTypeId: toNumberOrNull(body.employeeTypeId),
       roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
-            branchId: toNumberOrNull(body.branchId),
+      branchId: toNumberOrNull(body.branchId),
       departmentIds: parseIds(body.additionalDepartments),
     };
 
@@ -450,15 +443,18 @@ export const createEmployee = async (
       mobileNumber: toText(body.mobileNumber),
       alternateCountryCode: toText(body.alternateCountryCode),
       alternateContact: toText(body.alternateContact),
+      country: toText(body.country),
+      state: toText(body.state),
+      district: toText(body.district),
+      city: toText(body.city),
+      address: toText(body.address),
+      pinCode: toText(body.pinCode),
       employeeTypeId: links.employeeTypeId,
-      designationId: toNumberOrNull(body.designationId),
-      dateOfJoining: joining,
       employmentStatus: body.employmentStatus || "Active",
-      employmentEndDate: endDate,
       remarks: toText(body.remarks),
       roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
-          branchId: links.branchId,
+      branchId: links.branchId,
       createdBy: creator.by,
       createdType: creator.type,
       delete: 0,
@@ -516,15 +512,18 @@ export const getEmployeeList = async (
         "mobileNumber",
         "alternateCountryCode",
         "alternateContact",
+        "country",
+        "state",
+        "district",
+        "city",
+        "address",
+        "pinCode",
         "employeeTypeId",
-        "designationId",
-        "dateOfJoining",
         "employmentStatus",
-        "employmentEndDate",
         "remarks",
         "roleCategoryId",
         "roleId",
-                "branchId",
+        "branchId",
         "createdBy",
         "createdType",
         "updatedBy",
@@ -624,22 +623,25 @@ export const getEmployeeList = async (
         mobileNumber: r.mobileNumber || "",
         alternateCountryCode: r.alternateCountryCode || "",
         alternateContact: r.alternateContact || "",
+        country: r.country || "",
+        state: r.state || "",
+        district: r.district || "",
+        city: r.city || "",
+        address: r.address || "",
+        pinCode: r.pinCode || "",
         employeeTypeId: r.employeeTypeId,
         employeeTypeName: r.employeeTypeId
           ? typeMap[String(r.employeeTypeId)] || ""
           : "",
-        designationId: r.designationId,
-        designationName: "", // filled once the Designation module exists
-        dateOfJoining: r.dateOfJoining || "",
+
         employmentStatus: r.employmentStatus,
-        employmentEndDate: r.employmentEndDate || "",
         remarks: r.remarks || "",
         roleCategoryId: r.roleCategoryId,
         roleCategoryName: r.roleCategoryId
           ? categoryMap[String(r.roleCategoryId)] || ""
           : "",
         roleId: r.roleId,
-             branchId: r.branchId,
+        branchId: r.branchId,
         roleName: role?.name || "",
         roleDataScope: role?.scope || "",
         additionalDepartments: deptIds,
@@ -686,7 +688,7 @@ export const updateEmployee = async (
         "employeeTypeId",
         "roleCategoryId",
         "roleId",
-                "branchId",
+        "branchId",
         "profilePhoto",
       ],
     );
@@ -709,20 +711,11 @@ export const updateEmployee = async (
       return requiredmessage(res, "Official email already exists.");
     }
 
-    const joining = toDateOrNull(body.dateOfJoining);
-    const endDate = toDateOrNull(body.employmentEndDate);
-    if (joining && endDate && endDate < joining) {
-      return errorResponse(
-        res,
-        "Employment end date cannot be before the date of joining.",
-      );
-    }
-
     const links: Links = {
       employeeTypeId: toNumberOrNull(body.employeeTypeId),
       roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
-            branchId: toNumberOrNull(body.branchId),
+      branchId: toNumberOrNull(body.branchId),
       departmentIds: parseIds(body.additionalDepartments),
     };
 
@@ -740,15 +733,18 @@ export const updateEmployee = async (
       mobileNumber: toText(body.mobileNumber),
       alternateCountryCode: toText(body.alternateCountryCode),
       alternateContact: toText(body.alternateContact),
+      country: toText(body.country),
+      state: toText(body.state),
+      district: toText(body.district),
+      city: toText(body.city),
+      address: toText(body.address),
+      pinCode: toText(body.pinCode),
       employeeTypeId: links.employeeTypeId,
-      designationId: toNumberOrNull(body.designationId),
-      dateOfJoining: joining,
       employmentStatus: body.employmentStatus || "Active",
-      employmentEndDate: endDate,
       remarks: toText(body.remarks),
       roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
-          branchId: links.branchId,
+      branchId: links.branchId,
       updatedBy: creator.by,
       updated: new Date(),
     };

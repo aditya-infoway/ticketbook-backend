@@ -27,6 +27,7 @@ interface BranchBody {
   regionId?: Id | null;
   country?: string | null;
   state?: string | null;
+  district?: string | null;
   city?: string | null;
   fullAddress?: string | null;
   pinCode?: string | null;
@@ -340,6 +341,7 @@ export const createBranch = async (
       regionId,
       country: toText(body.country),
       state: toText(body.state),
+      district: toText(body.district),
       city: toText(body.city),
       fullAddress: toText(body.fullAddress),
       pinCode: toText(body.pinCode),
@@ -349,8 +351,6 @@ export const createBranch = async (
       password: passwordHash,
       branchManagerId,
       areaManagerId,
-      openingDate: body.openingDate ? body.openingDate : null,
-      workingHours: toText(body.workingHours),
       status: body.status || "Active",
       createdBy: creator.by,
       createdType: creator.type,
@@ -401,6 +401,7 @@ export const getBranchList = async (
         "regionId",
         "country",
         "state",
+        "district",
         "city",
         "fullAddress",
         "pinCode",
@@ -409,8 +410,6 @@ export const getBranchList = async (
         "branchEmail",
         "branchManagerId",
         "areaManagerId",
-        "openingDate",
-        "workingHours",
         "status",
         "createdBy",
         "createdType",
@@ -474,6 +473,7 @@ export const getBranchList = async (
       region: r.regionId ? regionMap[String(r.regionId)] || "" : "",
       country: r.country || "",
       state: r.state || "",
+      district: r.district || "",
       city: r.city || "",
       fullAddress: r.fullAddress || "",
       pinCode: r.pinCode || "",
@@ -488,8 +488,6 @@ export const getBranchList = async (
       areaManager: r.areaManagerId
         ? areaManagerMap[String(r.areaManagerId)] || ""
         : "",
-      openingDate: r.openingDate || "",
-      workingHours: r.workingHours || "",
       status: r.status,
       createdBy: r.createdBy || "",
       createdType: r.createdType || "",
@@ -574,6 +572,7 @@ export const updateBranch = async (
       regionId,
       country: toText(body.country),
       state: toText(body.state),
+      district: toText(body.district),
       city: toText(body.city),
       fullAddress: toText(body.fullAddress),
       pinCode: toText(body.pinCode),
@@ -582,8 +581,6 @@ export const updateBranch = async (
       branchEmail: email,
       branchManagerId,
       areaManagerId,
-      openingDate: body.openingDate ? body.openingDate : null,
-      workingHours: toText(body.workingHours),
       status: body.status || "Active",
       updatedBy: creator.by,
       updated: new Date(),

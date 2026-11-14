@@ -36,6 +36,10 @@ export const branchCreateSchema = Joi.object({
     "string.empty": "State is required",
     "any.required": "State is required",
   }),
+  district: Joi.string().trim().max(100).required().messages({
+    "string.empty": "District is required",
+    "any.required": "District is required",
+  }),
   city: Joi.string().trim().max(100).required().messages({
     "string.empty": "City is required",
     "any.required": "City is required",
@@ -73,14 +77,14 @@ export const branchCreateSchema = Joi.object({
     "any.required": "Confirm password is required",
   }),
 
- branchManagerId: Joi.alternatives()
-  .try(Joi.number().integer(), Joi.string().trim().allow(""))
-  .allow(null)
-  .optional(),
-areaManagerId: Joi.alternatives()
-  .try(Joi.number().integer(), Joi.string().trim().allow(""))
-  .allow(null)
-  .optional(),
+  branchManagerId: Joi.alternatives()
+    .try(Joi.number().integer(), Joi.string().trim().allow(""))
+    .allow(null)
+    .optional(),
+  areaManagerId: Joi.alternatives()
+    .try(Joi.number().integer(), Joi.string().trim().allow(""))
+    .allow(null)
+    .optional(),
   openingDate: optionalString(20),
   workingHours: optionalString(50),
 
