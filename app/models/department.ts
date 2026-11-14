@@ -24,47 +24,20 @@ export default (sequelize: Sequelize) => {
       allowNull: true,
       field: "departmentNo",
     },
-    departmentCode: {
-      type: DataTypes.STRING(50),
-      allowNull: false,
-      field: "departmentCode",
-    },
+
     departmentName: {
       type: DataTypes.STRING(150),
       allowNull: false,
       field: "departmentName",
     },
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      field: "description",
-    },
-    departmentTypeId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      field: "departmentTypeId",
-    },
-    parentDepartmentId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      field: "parentDepartmentId",
-    },
-    scope: {
-      type: DataTypes.STRING(50),
-      allowNull: false,
-      field: "scope",
-    },
+
     status: {
       type: DataTypes.STRING(20),
       allowNull: false,
       defaultValue: "Active",
       field: "status",
     },
-    displayOrder: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      field: "displayOrder",
-    },
+
     createdBy: {
       type: DataTypes.STRING(100),
       allowNull: true,
@@ -103,12 +76,7 @@ export default (sequelize: Sequelize) => {
   const options = {
     tableName: "department",
     comment: "",
-    indexes: [
-      { fields: ["companyId", "departmentNo"] },
-      { fields: ["companyId", "departmentCode"] },
-      { fields: ["companyId", "departmentTypeId"] },
-      { fields: ["companyId", "parentDepartmentId"] },
-    ],
+    indexes: [{ fields: ["companyId", "departmentNo"] }],
   };
 
   return sequelize.define("department", attributes, options);

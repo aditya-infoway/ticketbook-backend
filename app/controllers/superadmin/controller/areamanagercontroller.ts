@@ -12,7 +12,7 @@ import {
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
 import { generateVoucherNo } from "../../../helper/billNoGenerator";
-import { todayIST } from "../../../helper/dateHelper";
+
 
 type Id = string | number;
 
@@ -26,11 +26,12 @@ interface AreaManagerBody {
   alternateMobile?: string | null;
   email: string;
   address?: string | null;
-  city?: string | null;
+  country?: string | null;
   state?: string | null;
+  district?: string | null;
+  city?: string | null;
   pinCode?: string | null;
   areaId: Id;
-  joiningDate: string;
   description?: string | null;
   password?: string;
   confirmPassword?: string;
@@ -291,10 +292,6 @@ export const createAreaManager = async (
     const body = req.body as AreaManagerBody;
     const areaId = Number(body.areaId);
 
-    if (body.joiningDate > todayIST()) {
-      return reject("Joining date cannot be in the future.");
-    }
-
     const fy: any = await getFinancialYearById(
       body.financialYearId as any,
       Number(companyId),
@@ -334,12 +331,13 @@ export const createAreaManager = async (
       alternateMobile: toText(body.alternateMobile),
       email: toText(body.email).toLowerCase(),
       address: toText(body.address),
-      city: toText(body.city),
+      country: toText(body.country),
       state: toText(body.state),
+      district: toText(body.district),
+      city: toText(body.city),
       pinCode: toText(body.pinCode),
       areaId,
       description: toText(body.description),
-      joiningDate: body.joiningDate,
       password: await bcrypt.hash(String(body.password), 10),
       status: body.status || "Active",
       createdBy: creator.by,
@@ -391,12 +389,13 @@ export const getAreaManagerList = async (
         "alternateMobile",
         "email",
         "address",
-        "city",
+        "country",
         "state",
+        "district",
+        "city",
         "pinCode",
         "areaId",
         "description",
-        "joiningDate",
         "loginAccess",
         "status",
         "createdBy",
@@ -433,13 +432,14 @@ export const getAreaManagerList = async (
       alternateMobile: r.alternateMobile || "",
       email: r.email,
       address: r.address || "",
-      city: r.city || "",
+      country: r.country || "",
       state: r.state || "",
+      district: r.district || "",
+      city: r.city || "",
       pinCode: r.pinCode || "",
       areaId: String(r.areaId),
       areaName: areaMap[String(r.areaId)] || "",
       description: r.description || "",
-      joiningDate: r.joiningDate || "",
       loginAccess: !!r.loginAccess,
       status: r.status,
       createdBy: r.createdBy || "",
@@ -476,10 +476,6 @@ export const updateAreaManager = async (
     const body = req.body as AreaManagerBody;
     const areaManagerId = Number(body.areaManagerId);
     const areaId = Number(body.areaId);
-
-    if (body.joiningDate > todayIST()) {
-      return reject("Joining date cannot be in the future.");
-    }
 
     const existingRows: any[] = await selectWithJoins(
       "areamanager",
@@ -519,12 +515,13 @@ export const updateAreaManager = async (
       alternateMobile: toText(body.alternateMobile),
       email: toText(body.email).toLowerCase(),
       address: toText(body.address),
-      city: toText(body.city),
+      country: toText(body.country),
       state: toText(body.state),
+      district: toText(body.district),
+      city: toText(body.city),
       pinCode: toText(body.pinCode),
       areaId,
       description: toText(body.description),
-      joiningDate: body.joiningDate,
       status,
       updatedBy: creator.by,
       updated: new Date(),

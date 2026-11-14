@@ -46,6 +46,11 @@ export default (sequelize: Sequelize) => {
 
     country: { type: DataTypes.STRING(100), allowNull: true, field: "country" },
     state: { type: DataTypes.STRING(100), allowNull: true, field: "state" },
+    district: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      field: "district",
+    },
     city: { type: DataTypes.STRING(100), allowNull: true, field: "city" },
     fullAddress: {
       type: DataTypes.STRING(500),
@@ -86,17 +91,6 @@ export default (sequelize: Sequelize) => {
     // Kept as strings until the employee dropdown is wired to real ids
     branchManagerId: { type: DataTypes.INTEGER, allowNull: true },
     areaManagerId: { type: DataTypes.INTEGER, allowNull: true },
-
-    openingDate: {
-      type: DataTypes.DATEONLY,
-      allowNull: true,
-      field: "openingDate",
-    },
-    workingHours: {
-      type: DataTypes.STRING(50),
-      allowNull: true,
-      field: "workingHours",
-    },
 
     status: {
       type: DataTypes.STRING(20),

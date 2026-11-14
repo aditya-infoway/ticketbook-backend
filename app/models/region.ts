@@ -28,52 +28,10 @@ export default (sequelize: Sequelize) => {
       field: "regionNo",
     },
 
-    regionCode: {
-      type: DataTypes.STRING(50),
-      allowNull: false,
-      field: "regionCode",
-    },
-
     regionName: {
       type: DataTypes.STRING(150),
       allowNull: false,
       field: "regionName",
-    },
-
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      field: "description",
-    },
-
-    regionTypeId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      field: "regionTypeId",
-    },
-
-    country: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      field: "country",
-    },
-
-    state: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      field: "state",
-    },
-
-    city: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      field: "city",
-    },
-
-    displayOrder: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      field: "displayOrder",
     },
 
     status: {
@@ -130,12 +88,6 @@ export default (sequelize: Sequelize) => {
     indexes: [
       {
         fields: ["companyId", "regionNo"],
-      },
-      {
-        fields: ["companyId", "regionCode"],
-      },
-      {
-        fields: ["companyId", "regionTypeId"],
       },
       {
         fields: ["companyId", "regionName"],
