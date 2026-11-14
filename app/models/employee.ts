@@ -55,7 +55,7 @@ export default (sequelize: Sequelize) => {
     }, // bcrypt hash
 
     // Login session (same idea as company.token / tokenDate)
-   token: { type: DataTypes.TEXT, allowNull: true, field: "token" },
+    token: { type: DataTypes.TEXT, allowNull: true, field: "token" },
     tokenDate: {
       type: DataTypes.STRING(10),
       allowNull: true,
@@ -83,33 +83,34 @@ export default (sequelize: Sequelize) => {
       field: "alternateContact",
     },
 
+    country: { type: DataTypes.STRING(100), allowNull: true, field: "country" },
+    state: { type: DataTypes.STRING(100), allowNull: true, field: "state" },
+    district: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      field: "district",
+    },
+    city: { type: DataTypes.STRING(100), allowNull: true, field: "city" },
+    pinCode: { type: DataTypes.STRING(20), allowNull: true, field: "pinCode" },
+    address: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      field: "address",
+    },
+
     employeeTypeId: {
       type: DataTypes.INTEGER,
       allowNull: true,
       field: "employeeTypeId",
     },
-    designationId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      field: "designationId",
-    },
 
-    dateOfJoining: {
-      type: DataTypes.DATEONLY,
-      allowNull: true,
-      field: "dateOfJoining",
-    },
     employmentStatus: {
       type: DataTypes.STRING(20),
       allowNull: false,
       defaultValue: "Active", // "Active" | "Inactive"
       field: "employmentStatus",
     },
-    employmentEndDate: {
-      type: DataTypes.DATEONLY,
-      allowNull: true,
-      field: "employmentEndDate",
-    },
+
     remarks: { type: DataTypes.STRING(500), allowNull: true, field: "remarks" },
 
     roleCategoryId: {

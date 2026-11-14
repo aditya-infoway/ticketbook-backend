@@ -19,21 +19,8 @@ type Id = string | number;
 interface RegionBody {
   regionId?: Id;
   financialYearId?: Id;
-
-  regionCode: string;
   regionName: string;
-
-  description?: string | null;
-
-  regionTypeId?: Id;
-
-  country?: string | null;
-  state?: string | null;
-  city?: string | null;
-
   status?: string;
-  displayOrder?: number | string | null;
-
   createdBy?: Id | null;
   createdType?: string | null;
 }
@@ -41,27 +28,12 @@ interface RegionBody {
 interface RegionRow {
   regionId: number;
   financialYearId: number;
-
   regionNo: string | null;
-  regionCode: string;
   regionName: string;
-
-  description: string | null;
-
-  regionTypeId: number;
-
-  country: string | null;
-  state: string | null;
-  city: string | null;
-
   status: string;
-  displayOrder: number | null;
-
   createdBy: string | null;
   createdtype: string | null;
-
   updatedBy: string | null;
-
   created: Date;
   updated: Date;
 }
@@ -312,26 +284,6 @@ export const createRegion = async (
     }
 
     // ------------------------------------------
-    // Region Code
-    // ------------------------------------------
-
-    const code = normalizeCode(body.regionCode);
-
-    if (await isCodeTaken(companyId, code)) {
-      return requiredmessage(res, "Region code already exists.");
-    }
-
-    // ------------------------------------------
-    // Region Type
-    // ------------------------------------------
-
-    const typeError = await validateRegionType(companyId, body.regionTypeId);
-
-    if (typeError) {
-      return errorResponse(res, typeError);
-    }
-
-    // ------------------------------------------
     // Generate Region No
     // ------------------------------------------
 
@@ -359,33 +311,12 @@ export const createRegion = async (
 
     const saved: any = await saveModel("region", {
       companyId,
-
       financialYearId: fy.financialYearId,
-
       regionNo,
-
-      regionCode: code,
-
       regionName: String(body.regionName || "").trim(),
-
-      description: body.description ? String(body.description).trim() : "",
-
-      regionTypeId: Number(body.regionTypeId),
-
-      country: body.country ? String(body.country).trim() : "",
-
-      state: body.state ? String(body.state).trim() : "",
-
-      city: body.city ? String(body.city).trim() : "",
-
       status: body.status || "Active",
-
-      displayOrder: toNumberOrNull(body.displayOrder),
-
       createdBy: creator.by,
-
       createdtype: creator.type,
-
       delete: 0,
     });
 
@@ -439,15 +370,8 @@ export const getRegionList = async (
         "regionId",
         "financialYearId",
         "regionNo",
-        "regionCode",
         "regionName",
-        "description",
-        "regionTypeId",
-        "country",
-        "state",
-        "city",
         "status",
-        "displayOrder",
         "createdBy",
         "createdtype",
         "updatedBy",
@@ -564,53 +488,25 @@ export const getRegionList = async (
     // ------------------------------------------
     // Who Created / Updated
     // ------------------------------------------
-const who = (value: string | null): string => {
-  if (!value) return "";
-  return companyMap[String(value)] || String(value);
-};
+    const who = (value: string | null): string => {
+      if (!value) return "";
+      return companyMap[String(value)] || String(value);
+    };
     // ------------------------------------------
     // Final Data
     // ------------------------------------------
 
     const data = rows.map((r) => {
-      const type = typeMap[String(r.regionTypeId)];
-
       return {
         id: String(r.regionId),
-
         regionId: r.regionId,
-
         financialYearId: r.financialYearId,
-
         regionNo: r.regionNo || "",
-
-        regionCode: r.regionCode,
-
         regionName: r.regionName,
-
-        description: r.description || "",
-
-        regionTypeId: r.regionTypeId,
-
-        regionTypeName: type?.typeName || "",
-
-        typeCode: type?.typeCode || "",
-
-        country: r.country || "",
-
-        state: r.state || "",
-
-        city: r.city || "",
-
         status: r.status,
-
-        displayOrder: r.displayOrder,
-
-       createdBy: who(r.createdBy),
-updatedBy: who(r.updatedBy),
-
+        createdBy: who(r.createdBy),
+        updatedBy: who(r.updatedBy),
         created: r.created,
-
         updated: r.updated,
       };
     });
@@ -662,26 +558,6 @@ export const updateRegion = async (
     }
 
     // ------------------------------------------
-    // Code Unique
-    // ------------------------------------------
-
-    const code = normalizeCode(body.regionCode);
-
-    if (await isCodeTaken(companyId, code, regionId)) {
-      return requiredmessage(res, "Region code already exists.");
-    }
-
-    // ------------------------------------------
-    // Region Type
-    // ------------------------------------------
-
-    const typeError = await validateRegionType(companyId, body.regionTypeId);
-
-    if (typeError) {
-      return errorResponse(res, typeError);
-    }
-
-    // ------------------------------------------
     // Creator / Updater
     // ------------------------------------------
 
@@ -694,26 +570,9 @@ export const updateRegion = async (
     await updateModel(
       "region",
       {
-        regionCode: code,
-
         regionName: String(body.regionName || "").trim(),
-
-        description: body.description ? String(body.description).trim() : "",
-
-        regionTypeId: Number(body.regionTypeId),
-
-        country: body.country ? String(body.country).trim() : "",
-
-        state: body.state ? String(body.state).trim() : "",
-
-        city: body.city ? String(body.city).trim() : "",
-
         status: body.status || "Active",
-
-        displayOrder: toNumberOrNull(body.displayOrder),
-
         updatedBy: creator.by,
-
         updated: new Date(),
       },
 

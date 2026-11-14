@@ -49,8 +49,10 @@ export const areaManagerCreateSchema = Joi.object({
     "string.email": "Enter a valid email",
   }),
   address: Joi.string().trim().max(250).allow("", null),
-  city: Joi.string().trim().max(50).allow("", null),
-  state: Joi.string().trim().max(50).allow("", null),
+  country: Joi.string().trim().max(100).allow("", null),
+  state: Joi.string().trim().max(100).allow("", null),
+  district: Joi.string().trim().max(100).allow("", null),
+  city: Joi.string().trim().max(100).allow("", null),
   pinCode: Joi.string()
     .trim()
     .pattern(/^\d{6}$/)
@@ -60,15 +62,6 @@ export const areaManagerCreateSchema = Joi.object({
     }),
 
   areaId: requiredId("Area"),
-  joiningDate: Joi.string()
-    .trim()
-    .pattern(/^\d{4}-\d{2}-\d{2}$/)
-    .required()
-    .messages({
-      "string.empty": "Joining date is required",
-      "any.required": "Joining date is required",
-      "string.pattern.base": "Joining date must be YYYY-MM-DD",
-    }),
   description: Joi.string().trim().max(500).allow("", null).messages({
     "string.max": "Description must be at most 500 characters",
   }),
@@ -84,7 +77,6 @@ export const areaManagerCreateSchema = Joi.object({
   }),
   loginAccess: Joi.boolean().default(true),
 });
-
 
 // On update the password is optional (blank = keep current).
 // The match with confirmPassword is checked in the controller.

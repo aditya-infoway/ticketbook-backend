@@ -9,6 +9,7 @@ import {
   selectWithJoins,
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
+import { getCompanyIdFromAnyToken } from "../../../helper/tokenHelper";
 
 // ---- Types ----
 type Id = string | number;
@@ -174,7 +175,7 @@ export const getRoleCategoryList = async (
   res: Response,
 ): Promise<any> => {
   try {
-    const companyId = await getCompanyIdFromToken(req);
+    const companyId = await getCompanyIdFromAnyToken(req);
 
     if (!companyId) {
       return requiredmessage(

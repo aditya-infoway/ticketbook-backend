@@ -10,6 +10,7 @@ import {
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
 import { generateVoucherNo } from "../../../helper/billNoGenerator";
+import { getCompanyIdFromAnyToken } from "../../../helper/tokenHelper";
 
 // ---- Types ----
 type Id = string | number;
@@ -17,14 +18,8 @@ type Id = string | number;
 interface DepartmentBody {
   departmentId?: Id;
   financialYearId?: Id;
-  departmentCode: string;
   departmentName: string;
-  description?: string | null;
-  departmentTypeId?: Id;
-  parentDepartmentId?: Id | null;
-  scope: string;
   status?: string;
-  displayOrder?: number | string | null;
   createdBy?: Id | null;
   createdType?: string | null;
 }
@@ -33,14 +28,8 @@ interface DepartmentRow {
   departmentId: number;
   financialYearId: number;
   departmentNo: string | null;
-  departmentCode: string;
   departmentName: string;
-  description: string | null;
-  departmentTypeId: number;
-  parentDepartmentId: number | null;
-  scope: string;
   status: string;
-  displayOrder: number | null;
   createdBy: string | null;
   createdtype: string | null;
   updatedBy: string | null;
@@ -262,22 +251,6 @@ export const createDepartment = async (
 
     if (!fy) return errorResponse(res, "Invalid Financial Year.");
 
-    const code = normalizeCode(body.departmentCode);
-
-    if (await isCodeTaken(companyId, code)) {
-      return requiredmessage(res, "Department code already exists.");
-    }
-
-    const parentId = toNumberOrNull(body.parentDepartmentId);
-
-    const relationError = await validateTypeAndParent(
-      companyId,
-      body.departmentTypeId,
-      parentId,
-    );
-
-    if (relationError) return errorResponse(res, relationError);
-
     const departmentNo = await generateUniqueDepartmentNo(
       Number(companyId),
       fy.financialYearId,
@@ -296,14 +269,8 @@ export const createDepartment = async (
       companyId,
       financialYearId: fy.financialYearId,
       departmentNo,
-      departmentCode: code,
       departmentName: String(body.departmentName || "").trim(),
-      description: body.description ? String(body.description).trim() : "",
-      departmentTypeId: Number(body.departmentTypeId),
-      parentDepartmentId: parentId,
-      scope: body.scope,
       status: body.status || "Active",
-      displayOrder: toNumberOrNull(body.displayOrder),
       createdBy: creator.by,
       createdtype: creator.type,
       delete: 0,
@@ -329,7 +296,7 @@ export const getDepartmentList = async (
   res: Response,
 ): Promise<any> => {
   try {
-    const companyId = await getCompanyIdFromToken(req);
+    const companyId = await getCompanyIdFromAnyToken(req);
 
     if (!companyId) {
       return requiredmessage(
@@ -338,7 +305,7 @@ export const getDepartmentList = async (
       );
     }
 
-       const rows = (await selectWithJoins(
+    const rows = (await selectWithJoins(
       "department",
       [],
       { companyId, delete: 0 },
@@ -346,14 +313,8 @@ export const getDepartmentList = async (
         "departmentId",
         "financialYearId",
         "departmentNo",
-        "departmentCode",
         "departmentName",
-        "description",
-        "departmentTypeId",
-        "parentDepartmentId",
-        "scope",
         "status",
-        "displayOrder",
         "createdBy",
         "createdtype",
         "updatedBy",
@@ -443,34 +404,22 @@ export const getDepartmentList = async (
         console.error("Error fetching companies:", err);
       }
     }
-   // ---- Employee IDs + empMap block poora hata do ----
+    // ---- Employee IDs + empMap block poora hata do ----
 
-const who = (value: string | null): string => {
-  if (!value) return "";
-  return companyMap[String(value)] || String(value);
-};
-
-
+    const who = (value: string | null): string => {
+      if (!value) return "";
+      return companyMap[String(value)] || String(value);
+    };
 
     const data = rows.map((r) => ({
       id: String(r.departmentId),
       departmentId: r.departmentId,
       financialYearId: r.financialYearId,
       departmentNo: r.departmentNo || "",
-      departmentCode: r.departmentCode,
       departmentName: r.departmentName,
-      description: r.description || "",
-      departmentTypeId: r.departmentTypeId,
-      typeName: typeMap[String(r.departmentTypeId)] || "",
-      parentDepartmentId: r.parentDepartmentId,
-      parentName: r.parentDepartmentId
-        ? nameMap[String(r.parentDepartmentId)] || ""
-        : "",
-      scope: r.scope,
       status: r.status,
-      displayOrder: r.displayOrder,
-     createdBy: who(r.createdBy),
-updatedBy: who(r.updatedBy),
+      createdBy: who(r.createdBy),
+      updatedBy: who(r.updatedBy),
       created: r.created,
       updated: r.updated,
     }));
@@ -507,37 +456,14 @@ export const updateDepartment = async (
       return requiredmessage(res, "Department not found.");
     }
 
-    const code = normalizeCode(body.departmentCode);
-
-    if (await isCodeTaken(companyId, code, departmentId)) {
-      return requiredmessage(res, "Department code already exists.");
-    }
-
-    const parentId = toNumberOrNull(body.parentDepartmentId);
-
-    const relationError = await validateTypeAndParent(
-      companyId,
-      body.departmentTypeId,
-      parentId,
-      departmentId,
-    );
-
-    if (relationError) return errorResponse(res, relationError);
-
     const creator = getCreator(req, body, companyId);
 
     // departmentNo, financialYearId, createdBy update me change nahi hote
     await updateModel(
       "department",
       {
-        departmentCode: code,
         departmentName: String(body.departmentName || "").trim(),
-        description: body.description ? String(body.description).trim() : "",
-        departmentTypeId: Number(body.departmentTypeId),
-        parentDepartmentId: parentId,
-        scope: body.scope,
         status: body.status || "Active",
-        displayOrder: toNumberOrNull(body.displayOrder),
         updatedBy: creator.by,
         updated: new Date(),
       },
