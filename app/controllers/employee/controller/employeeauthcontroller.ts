@@ -83,7 +83,6 @@ export const employeeLogin = async (
         "officialEmail",
         "password",
         "employmentStatus",
-        "employmentEndDate",
         "roleId",
       ],
     );
@@ -136,12 +135,6 @@ export const employeeLogin = async (
         return errorResponse(
           res,
           "Your account is inactive. Please contact the administrator.",
-        );
-      }
-      if (user.employmentEndDate && user.employmentEndDate < todayIST()) {
-        return errorResponse(
-          res,
-          "Your employment has ended. Please contact the administrator.",
         );
       }
     }

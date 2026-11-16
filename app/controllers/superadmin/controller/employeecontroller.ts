@@ -35,10 +35,8 @@ interface EmployeeBody {
   city?: string | null;
   address?: string | null;
   pinCode?: string | null;
-  employeeTypeId?: Id | null;
   employmentStatus?: string;
   remarks?: string | null;
-  roleCategoryId?: Id | null;
   roleId?: Id | null;
   branchId?: Id | null;
   additionalDepartments?: number[] | string | null;
@@ -52,8 +50,6 @@ interface Creator {
 }
 
 interface Links {
-  employeeTypeId: number | null;
-  roleCategoryId: number | null;
   roleId: number | null;
   branchId: number | null;
   departmentIds: number[];
@@ -171,63 +167,22 @@ const validateLinks = async (
   links: Links,
   existing?: any,
 ): Promise<string | null> => {
-  if (links.employeeTypeId) {
-    const rows: any[] = await selectWithJoins(
-      "employeetype",
-      [],
-      { employeeTypeId: links.employeeTypeId, companyId, delete: 0 },
-      ["employeeTypeId", "status"],
-    );
-
-    if (!rows.length) return "Selected employee type was not found.";
-
-    const changed =
-      !existing || Number(existing.employeeTypeId) !== links.employeeTypeId;
-    if (changed && rows[0].status !== "Active") {
-      return "Selected employee type is inactive.";
-    }
-  }
-
-  if (links.roleId && !links.roleCategoryId) {
-    return "Select a role category before selecting a role.";
-  }
-
-  if (links.roleCategoryId) {
-    const rows: any[] = await selectWithJoins(
-      "rolecategory",
-      [],
-      { roleCategoryId: links.roleCategoryId, companyId, delete: 0 },
-      ["roleCategoryId", "status"],
-    );
-
-    if (!rows.length) return "Selected role category was not found.";
-
-    const changed =
-      !existing || Number(existing.roleCategoryId) !== links.roleCategoryId;
-    if (changed && rows[0].status !== "Active") {
-      return "Selected role category is inactive.";
-    }
-  }
-
   if (links.roleId) {
     const rows: any[] = await selectWithJoins(
       "role",
       [],
       { roleId: links.roleId, companyId, delete: 0 },
-      ["roleId", "roleCategoryId", "status"],
+      ["roleId", "status"],
     );
 
     if (!rows.length) return "Selected role was not found.";
-
-    if (Number(rows[0].roleCategoryId) !== links.roleCategoryId) {
-      return "Selected role does not belong to the selected role category.";
-    }
 
     const changed = !existing || Number(existing.roleId) !== links.roleId;
     if (changed && rows[0].status !== "Active") {
       return "Selected role is inactive.";
     }
   }
+
   if (links.branchId) {
     const rows: any[] = await selectWithJoins(
       "branch",
@@ -404,8 +359,6 @@ export const createEmployee = async (
     }
 
     const links: Links = {
-      employeeTypeId: toNumberOrNull(body.employeeTypeId),
-      roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
       branchId: toNumberOrNull(body.branchId),
       departmentIds: parseIds(body.additionalDepartments),
@@ -449,10 +402,8 @@ export const createEmployee = async (
       city: toText(body.city),
       address: toText(body.address),
       pinCode: toText(body.pinCode),
-      employeeTypeId: links.employeeTypeId,
       employmentStatus: body.employmentStatus || "Active",
       remarks: toText(body.remarks),
-      roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
       branchId: links.branchId,
       createdBy: creator.by,
@@ -518,10 +469,8 @@ export const getEmployeeList = async (
         "city",
         "address",
         "pinCode",
-        "employeeTypeId",
         "employmentStatus",
         "remarks",
-        "roleCategoryId",
         "roleId",
         "branchId",
         "createdBy",
@@ -537,43 +486,28 @@ export const getEmployeeList = async (
       return successResponse(res, [], "Employees fetched successfully.");
     }
 
-    // Employee type names
-    const typeRows: any[] = await selectWithJoins(
-      "employeetype",
-      [],
-      { companyId, delete: 0 },
-      ["employeeTypeId", "typeName"],
-    );
-    const typeMap: Record<string, string> = {};
-    typeRows.forEach((t) => {
-      typeMap[String(t.employeeTypeId)] = t.typeName;
-    });
-
-    // Role category names
-    const categoryRows: any[] = await selectWithJoins(
-      "rolecategory",
-      [],
-      { companyId, delete: 0 },
-      ["roleCategoryId", "roleCategoryName"],
-    );
-    const categoryMap: Record<string, string> = {};
-    categoryRows.forEach((c) => {
-      categoryMap[String(c.roleCategoryId)] = c.roleCategoryName;
-    });
-
-    // Role names + data scope
+    // Role names
     const roleRows: any[] = await selectWithJoins(
       "role",
       [],
       { companyId, delete: 0 },
-      ["roleId", "roleName", "defaultDataScope"],
+      ["roleId", "roleName"],
     );
-    const roleMap: Record<string, { name: string; scope: string }> = {};
+    const roleMap: Record<string, string> = {};
     roleRows.forEach((r) => {
-      roleMap[String(r.roleId)] = {
-        name: r.roleName,
-        scope: r.defaultDataScope || "",
-      };
+      roleMap[String(r.roleId)] = r.roleName;
+    });
+
+    // Branch names
+    const branchRows: any[] = await selectWithJoins(
+      "branch",
+      [],
+      { companyId, delete: 0 },
+      ["branchId", "branchName"],
+    );
+    const branchMap: Record<string, string> = {};
+    branchRows.forEach((b) => {
+      branchMap[String(b.branchId)] = b.branchName;
     });
 
     // Additional departments (mapping + names)
@@ -606,7 +540,6 @@ export const getEmployeeList = async (
 
     const data = rows.map((r) => {
       const deptIds = employeeDepartments[String(r.employeeId)] || [];
-      const role = r.roleId ? roleMap[String(r.roleId)] : undefined;
 
       return {
         id: String(r.employeeId),
@@ -629,21 +562,12 @@ export const getEmployeeList = async (
         city: r.city || "",
         address: r.address || "",
         pinCode: r.pinCode || "",
-        employeeTypeId: r.employeeTypeId,
-        employeeTypeName: r.employeeTypeId
-          ? typeMap[String(r.employeeTypeId)] || ""
-          : "",
-
         employmentStatus: r.employmentStatus,
         remarks: r.remarks || "",
-        roleCategoryId: r.roleCategoryId,
-        roleCategoryName: r.roleCategoryId
-          ? categoryMap[String(r.roleCategoryId)] || ""
-          : "",
         roleId: r.roleId,
         branchId: r.branchId,
-        roleName: role?.name || "",
-        roleDataScope: role?.scope || "",
+         branchName: r.branchId ? branchMap[String(r.branchId)] || "" : "",
+        roleName: r.roleId ? roleMap[String(r.roleId)] || "" : "",
         additionalDepartments: deptIds,
         additionalDepartmentNames: deptIds.map(
           (id) => departmentNameMap[String(id)] || "",
@@ -685,8 +609,6 @@ export const updateEmployee = async (
       { employeeId, companyId, delete: 0 },
       [
         "employeeId",
-        "employeeTypeId",
-        "roleCategoryId",
         "roleId",
         "branchId",
         "profilePhoto",
@@ -712,8 +634,6 @@ export const updateEmployee = async (
     }
 
     const links: Links = {
-      employeeTypeId: toNumberOrNull(body.employeeTypeId),
-      roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
       branchId: toNumberOrNull(body.branchId),
       departmentIds: parseIds(body.additionalDepartments),
@@ -739,10 +659,8 @@ export const updateEmployee = async (
       city: toText(body.city),
       address: toText(body.address),
       pinCode: toText(body.pinCode),
-      employeeTypeId: links.employeeTypeId,
       employmentStatus: body.employmentStatus || "Active",
       remarks: toText(body.remarks),
-      roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
       branchId: links.branchId,
       updatedBy: creator.by,

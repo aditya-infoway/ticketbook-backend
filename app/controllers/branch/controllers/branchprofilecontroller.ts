@@ -59,8 +59,6 @@ export const getMyBranchProfile = async (
         "phoneNumber",
         "branchManagerId",
         "areaManagerId",
-        "openingDate",
-        "workingHours",
         "status",
       ],
     );
@@ -106,8 +104,6 @@ export const getMyBranchProfile = async (
         phoneNumber: r.phoneNumber || "",
         branchManager: await empName(r.branchManagerId),
         areaManager: await empName(r.areaManagerId),
-        openingDate: r.openingDate || "",
-        workingHours: r.workingHours || "",
         status: r.status || "",
       },
       "Profile fetched successfully.",

@@ -55,7 +55,7 @@ export const getMyProfile = async (
           "areaId",
           "branchId",
           "status",
-            "profilePhoto", 
+          "profilePhoto",
         ],
       );
       if (!cRows.length) return requiredmessage(res, "Contractor not found.");
@@ -80,16 +80,16 @@ export const getMyProfile = async (
           employeeNo: c.contractorNo || "",
           employeeCode: c.contractorNo || "",
           employeeName: c.contractorName || "",
-      profilePhoto: c.profilePhoto ? getBlobTempPublicUrl(c.profilePhoto) : "",
+          profilePhoto: c.profilePhoto
+            ? getBlobTempPublicUrl(c.profilePhoto)
+            : "",
           officialEmail: c.email || "",
           mobileCountryCode: "91",
           mobileNumber: c.mobileNumber || "",
           alternateCountryCode: "91",
           alternateContact: "",
-          employeeTypeName: "Contractor",
           roleName: "contractor",
           departmentName: "",
-          dateOfJoining: "",
           employmentStatus: c.status || "",
           specialization: c.specialization || "",
           address: c.address || "",
@@ -121,9 +121,7 @@ export const getMyProfile = async (
         "mobileNumber",
         "alternateCountryCode",
         "alternateContact",
-        "employeeTypeId",
         "roleId",
-        "dateOfJoining",
         "employmentStatus",
       ],
     );
@@ -181,10 +179,8 @@ export const getMyProfile = async (
         mobileNumber: r.mobileNumber || "",
         alternateCountryCode: r.alternateCountryCode || "91",
         alternateContact: r.alternateContact || "",
-        employeeTypeName: types[0]?.typeName || "",
         roleName: roles[0]?.roleName || "",
         departmentName: deptRows.map((d) => d.departmentName).join(", "),
-        dateOfJoining: r.dateOfJoining || "",
         employmentStatus: r.employmentStatus || "",
       },
       "Profile fetched successfully.",
@@ -213,7 +209,7 @@ export const updateMyProfile = async (
         "contractor",
         [],
         { contractorId, delete: 0 },
-      ["contractorId", "password", "profilePhoto"],
+        ["contractorId", "password", "profilePhoto"],
       );
       if (!cExisting.length)
         return requiredmessage(res, "Contractor not found.");
@@ -249,11 +245,11 @@ export const updateMyProfile = async (
         if (!ok) return errorResponse(res, "Current password is incorrect.");
         cPayload.password = await bcrypt.hash(String(cBody.newPassword), 10);
       }
-const cPhoto = (req as any).file as Express.Multer.File | undefined;
-if (cPhoto) {
-  cPayload.profilePhoto = "employee_photo/" + cPhoto.filename;
-  removeOldFile(cExisting[0].profilePhoto);
-}
+      const cPhoto = (req as any).file as Express.Multer.File | undefined;
+      if (cPhoto) {
+        cPayload.profilePhoto = "employee_photo/" + cPhoto.filename;
+        removeOldFile(cExisting[0].profilePhoto);
+      }
       await updateModel("contractor", cPayload, { contractorId });
       return successResponse(res, {}, "Profile updated successfully.");
     }
