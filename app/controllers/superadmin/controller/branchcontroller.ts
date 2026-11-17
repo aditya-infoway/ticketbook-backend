@@ -156,7 +156,6 @@ const validateRegion = async (
 };
 
 // Manager active employee ho aur uska role sahi ho
-// Manager active employee ho aur uska role sahi ho
 const checkBranchManager = async (
   companyId: Id,
   branchManagerId: number | null,
