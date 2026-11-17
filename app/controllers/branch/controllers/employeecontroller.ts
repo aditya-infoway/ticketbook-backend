@@ -16,7 +16,6 @@ import { getFinancialYearById } from "../../../helper/financialYear";
 import { generateVoucherNo } from "../../../helper/billNoGenerator";
 import jwt from "jsonwebtoken";
 
-
 // ---- Types ----
 type Id = string | number;
 
@@ -31,13 +30,14 @@ interface EmployeeBody {
   mobileNumber?: string | null;
   alternateCountryCode?: string | null;
   alternateContact?: string | null;
-  employeeTypeId?: Id | null;
-  designationId?: Id | null;
-  dateOfJoining?: string | null;
+  country?: string | null;
+  state?: string | null;
+  district?: string | null;
+  city?: string | null;
+  address?: string | null;
+  pinCode?: string | null;
   employmentStatus?: string;
-  employmentEndDate?: string | null;
   remarks?: string | null;
-  roleCategoryId?: Id | null;
   roleId?: Id | null;
   branchId?: Id | null; // ignored – forced from token
   additionalDepartments?: number[] | string | null;
@@ -51,15 +51,12 @@ interface Creator {
 }
 
 interface Links {
-  employeeTypeId: number | null;
-  roleCategoryId: number | null;
   roleId: number | null;
   branchId: number | null;
   departmentIds: number[];
 }
 
 // ---- Get company + branch + employee from token ----
-
 
 // ---- Get company + branch from token (works for Branch + Employee login) ----
 const getContextFromToken = async (
@@ -246,64 +243,21 @@ const validateLinks = async (
   links: Links,
   existing?: any,
 ): Promise<string | null> => {
-  if (links.employeeTypeId) {
-    const rows: any[] = await selectWithJoins(
-      "employeetype",
-      [],
-      { employeeTypeId: links.employeeTypeId, companyId, delete: 0 },
-      ["employeeTypeId", "status"],
-    );
-
-    if (!rows.length) return "Selected employee type was not found.";
-
-    const changed =
-      !existing || Number(existing.employeeTypeId) !== links.employeeTypeId;
-    if (changed && rows[0].status !== "Active") {
-      return "Selected employee type is inactive.";
-    }
-  }
-
-  if (links.roleId && !links.roleCategoryId) {
-    return "Select a role category before selecting a role.";
-  }
-
-  if (links.roleCategoryId) {
-    const rows: any[] = await selectWithJoins(
-      "rolecategory",
-      [],
-      { roleCategoryId: links.roleCategoryId, companyId, delete: 0 },
-      ["roleCategoryId", "status"],
-    );
-
-    if (!rows.length) return "Selected role category was not found.";
-
-    const changed =
-      !existing || Number(existing.roleCategoryId) !== links.roleCategoryId;
-    if (changed && rows[0].status !== "Active") {
-      return "Selected role category is inactive.";
-    }
-  }
-
   if (links.roleId) {
     const rows: any[] = await selectWithJoins(
       "role",
       [],
       { roleId: links.roleId, companyId, delete: 0 },
-      ["roleId", "roleCategoryId", "status"],
+      ["roleId", "status"],
     );
 
     if (!rows.length) return "Selected role was not found.";
-
-    if (Number(rows[0].roleCategoryId) !== links.roleCategoryId) {
-      return "Selected role does not belong to the selected role category.";
-    }
 
     const changed = !existing || Number(existing.roleId) !== links.roleId;
     if (changed && rows[0].status !== "Active") {
       return "Selected role is inactive.";
     }
   }
-
   if (links.departmentIds.length) {
     const rows: any[] = await selectWithJoins(
       "department",
@@ -471,19 +425,8 @@ export const createEmployee = async (
       return requiredmessage(res, "Official email already exists.");
     }
 
-    const joining = toDateOrNull(body.dateOfJoining);
-    const endDate = toDateOrNull(body.employmentEndDate);
-    if (joining && endDate && endDate < joining) {
-      return errorResponse(
-        res,
-        "Employment end date cannot be before the date of joining.",
-      );
-    }
-
     // Force branch of the logged-in user
     const links: Links = {
-      employeeTypeId: toNumberOrNull(body.employeeTypeId),
-      roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
       branchId: Number(ctx.branchId),
       departmentIds: parseIds(body.additionalDepartments),
@@ -523,13 +466,14 @@ export const createEmployee = async (
       mobileNumber: toText(body.mobileNumber),
       alternateCountryCode: toText(body.alternateCountryCode),
       alternateContact: toText(body.alternateContact),
-      employeeTypeId: links.employeeTypeId,
-      designationId: toNumberOrNull(body.designationId),
-      dateOfJoining: joining,
+      country: toText(body.country),
+      state: toText(body.state),
+      district: toText(body.district),
+      city: toText(body.city),
+      address: toText(body.address),
+      pinCode: toText(body.pinCode),
       employmentStatus: body.employmentStatus || "Active",
-      employmentEndDate: endDate,
       remarks: toText(body.remarks),
-      roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
       branchId: links.branchId, // forced
       createdBy: creator.by,
@@ -595,13 +539,14 @@ export const getEmployeeList = async (
         "mobileNumber",
         "alternateCountryCode",
         "alternateContact",
-        "employeeTypeId",
-        "designationId",
-        "dateOfJoining",
+        "country",
+        "state",
+        "district",
+        "city",
+        "address",
+        "pinCode",
         "employmentStatus",
-        "employmentEndDate",
         "remarks",
-        "roleCategoryId",
         "roleId",
         "branchId",
         "createdBy",
@@ -641,19 +586,16 @@ export const getEmployeeList = async (
       categoryMap[String(c.roleCategoryId)] = c.roleCategoryName;
     });
 
-    // Role names + data scope
+    // Role names
     const roleRows: any[] = await selectWithJoins(
       "role",
       [],
       { companyId: ctx.companyId, delete: 0 },
-      ["roleId", "roleName", "defaultDataScope"],
+      ["roleId", "roleName"],
     );
-    const roleMap: Record<string, { name: string; scope: string }> = {};
+    const roleMap: Record<string, string> = {};
     roleRows.forEach((r) => {
-      roleMap[String(r.roleId)] = {
-        name: r.roleName,
-        scope: r.defaultDataScope || "",
-      };
+      roleMap[String(r.roleId)] = r.roleName;
     });
 
     // Additional departments
@@ -685,7 +627,6 @@ export const getEmployeeList = async (
 
     const data = rows.map((r) => {
       const deptIds = employeeDepartments[String(r.employeeId)] || [];
-      const role = r.roleId ? roleMap[String(r.roleId)] : undefined;
 
       return {
         id: String(r.employeeId),
@@ -702,24 +643,17 @@ export const getEmployeeList = async (
         mobileNumber: r.mobileNumber || "",
         alternateCountryCode: r.alternateCountryCode || "",
         alternateContact: r.alternateContact || "",
-        employeeTypeId: r.employeeTypeId,
-        employeeTypeName: r.employeeTypeId
-          ? typeMap[String(r.employeeTypeId)] || ""
-          : "",
-        designationId: r.designationId,
-        designationName: "", // fill when Designation module is ready
-        dateOfJoining: r.dateOfJoining || "",
+        country: r.country || "",
+        state: r.state || "",
+        district: r.district || "",
+        city: r.city || "",
+        address: r.address || "",
+        pinCode: r.pinCode || "",
         employmentStatus: r.employmentStatus,
-        employmentEndDate: r.employmentEndDate || "",
         remarks: r.remarks || "",
-        roleCategoryId: r.roleCategoryId,
-        roleCategoryName: r.roleCategoryId
-          ? categoryMap[String(r.roleCategoryId)] || ""
-          : "",
         roleId: r.roleId,
         branchId: r.branchId,
-        roleName: role?.name || "",
-        roleDataScope: role?.scope || "",
+        roleName: r.roleId ? roleMap[String(r.roleId)] || "" : "",
         additionalDepartments: deptIds,
         additionalDepartmentNames: deptIds.map(
           (id) => departmentNameMap[String(id)] || "",
@@ -767,14 +701,7 @@ export const updateEmployee = async (
         branchId: ctx.branchId,
         delete: 0,
       },
-      [
-        "employeeId",
-        "employeeTypeId",
-        "roleCategoryId",
-        "roleId",
-        "branchId",
-        "profilePhoto",
-      ],
+      ["employeeId", "roleId", "branchId", "profilePhoto"],
     );
 
     if (!existingRows.length) {
@@ -797,18 +724,7 @@ export const updateEmployee = async (
       return requiredmessage(res, "Official email already exists.");
     }
 
-    const joining = toDateOrNull(body.dateOfJoining);
-    const endDate = toDateOrNull(body.employmentEndDate);
-    if (joining && endDate && endDate < joining) {
-      return errorResponse(
-        res,
-        "Employment end date cannot be before the date of joining.",
-      );
-    }
-
     const links: Links = {
-      employeeTypeId: toNumberOrNull(body.employeeTypeId),
-      roleCategoryId: toNumberOrNull(body.roleCategoryId),
       roleId: toNumberOrNull(body.roleId),
       branchId: Number(ctx.branchId), // never allow change
       departmentIds: parseIds(body.additionalDepartments),
@@ -831,13 +747,14 @@ export const updateEmployee = async (
       mobileNumber: toText(body.mobileNumber),
       alternateCountryCode: toText(body.alternateCountryCode),
       alternateContact: toText(body.alternateContact),
-      employeeTypeId: links.employeeTypeId,
-      designationId: toNumberOrNull(body.designationId),
-      dateOfJoining: joining,
+      country: toText(body.country),
+      state: toText(body.state),
+      district: toText(body.district),
+      city: toText(body.city),
+      address: toText(body.address),
+      pinCode: toText(body.pinCode),
       employmentStatus: body.employmentStatus || "Active",
-      employmentEndDate: endDate,
       remarks: toText(body.remarks),
-      roleCategoryId: links.roleCategoryId,
       roleId: links.roleId,
       // branchId is intentionally NOT updated
       updatedBy: creator.by,

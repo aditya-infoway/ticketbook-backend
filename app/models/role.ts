@@ -9,6 +9,11 @@ export default (sequelize: Sequelize) => {
       autoIncrement: true,
       field: "roleId",
     },
+    roleNo: {
+      type: DataTypes.STRING(50),
+      allowNull: true, // old rows have no number
+      field: "roleNo",
+    },
     companyId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -19,36 +24,10 @@ export default (sequelize: Sequelize) => {
       allowNull: false,
       field: "financialYearId",
     },
-    roleCode: {
-      type: DataTypes.STRING(50),
-      allowNull: false,
-      field: "roleCode",
-    },
     roleName: {
       type: DataTypes.STRING(150),
       allowNull: false,
       field: "roleName",
-    },
-    roleCategoryId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      field: "roleCategoryId",
-    },
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      field: "description",
-    },
-    defaultDataScope: {
-      type: DataTypes.STRING(30),
-      allowNull: false,
-      field: "defaultDataScope",
-    },
-    departmentRestriction: {
-      type: DataTypes.STRING(20),
-      allowNull: false,
-      defaultValue: "all",
-      field: "departmentRestriction",
     },
     status: {
       type: DataTypes.STRING(20),
@@ -95,8 +74,7 @@ export default (sequelize: Sequelize) => {
     tableName: "role",
     comment: "",
     indexes: [
-      { fields: ["companyId", "roleCode"] },
-      { fields: ["companyId", "roleCategoryId"] },
+      { fields: ["companyId", "roleNo"] },
       { fields: ["companyId", "status"] },
     ],
   };

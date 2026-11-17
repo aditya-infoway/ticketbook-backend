@@ -31,6 +31,8 @@ routes.use(checktoken);
 // ---- Role ----
 routes.get("/list", role.getRoleList);
 
+routes.get("/next-no", role.getNextRoleNo);;
+
 routes.post("/create", validate(roleCreateSchema), role.createRole);
 
 routes.put("/update", validate(roleUpdateSchema), role.updateRole);
