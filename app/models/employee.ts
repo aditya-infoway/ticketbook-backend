@@ -98,11 +98,6 @@ export default (sequelize: Sequelize) => {
       field: "address",
     },
 
-    employeeTypeId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      field: "employeeTypeId",
-    },
 
     employmentStatus: {
       type: DataTypes.STRING(20),
@@ -113,11 +108,6 @@ export default (sequelize: Sequelize) => {
 
     remarks: { type: DataTypes.STRING(500), allowNull: true, field: "remarks" },
 
-    roleCategoryId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      field: "roleCategoryId",
-    },
     roleId: { type: DataTypes.INTEGER, allowNull: true, field: "roleId" },
 
     // Audit

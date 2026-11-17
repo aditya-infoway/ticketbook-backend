@@ -10,6 +10,7 @@ import {
 } from "../../../helper/index";
 import { getFinancialYearById } from "../../../helper/financialYear";
 import { getCompanyIdFromAnyToken } from "../../../helper/tokenHelper";
+import { generateVoucherNo } from "../../../helper/billNoGenerator";
 
 // ---- Types ----
 type Id = string | number;
@@ -17,13 +18,7 @@ type Id = string | number;
 interface RoleBody {
   roleId?: Id;
   financialYearId?: Id;
-  roleCode: string;
   roleName: string;
-  roleCategoryId: Id;
-  description?: string | null;
-  defaultDataScope: string;
-  departmentRestriction: string;
-  departmentIds?: number[];
   status?: string;
   createdBy?: Id | null;
   createdType?: string | null;
@@ -31,13 +26,9 @@ interface RoleBody {
 
 interface RoleRow {
   roleId: number;
+  roleNo: string | null;
   financialYearId: number;
-  roleCode: string;
   roleName: string;
-  roleCategoryId: number;
-  description: string | null;
-  defaultDataScope: string;
-  departmentRestriction: string;
   status: string;
   createdBy: string | null;
   createdtype: string | null;
@@ -77,11 +68,7 @@ const normalizeCode = (value: unknown): string =>
     .toUpperCase();
 
 // Logged-in employee ho to uska id, nahi to body ka createdBy, warna companyId
-const getCreator = (
-  req: Request,
-  body: RoleBody,
-  companyId: Id,
-): Creator => {
+const getCreator = (req: Request, body: RoleBody, companyId: Id): Creator => {
   const employeeId = (req as any).employeeId as Id | undefined;
 
   return {
@@ -94,95 +81,108 @@ const getCreator = (
   };
 };
 
-// Role Code company me unique hona chahiye
-const isCodeTaken = async (
+// Role Name company me unique hona chahiye
+const isNameTaken = async (
   companyId: Id,
-  code: string,
+  name: string,
   excludeId?: Id,
 ): Promise<boolean> => {
   const rows: any[] = await selectWithJoins(
     "role",
     [],
     { companyId, delete: 0 },
-    ["roleId", "roleCode"],
+    ["roleId", "roleName"],
   );
 
   return rows.some(
     (row) =>
-      normalizeCode(row.roleCode) === code &&
+      String(row.roleName || "")
+        .trim()
+        .toLowerCase() === name.toLowerCase() &&
       String(row.roleId) !== String(excludeId ?? ""),
   );
 };
 
-// Category exist kare aur Active ho
-const validateCategory = async (
-  companyId: Id,
-  roleCategoryId: number,
+// Unique Role No (prefix + FY + running number), retry on collision
+const generateUniqueRoleNo = async (
+  companyId: number,
+  financialYearId: number,
 ): Promise<string | null> => {
-  const rows: any[] = await selectWithJoins(
-    "rolecategory",
-    [],
-    { roleCategoryId, companyId, delete: 0 },
-    ["roleCategoryId", "status"],
-  );
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { billNo } = await generateVoucherNo({
+      companyId,
+      financialYearId,
+      tableName: "role",
+      idColumn: "roleId",
+      prefixFor: "ROLE",
+    });
 
-  if (!rows.length) return "Selected role category was not found.";
-  if (rows[0].status !== "Active") return "Selected role category is inactive.";
+    const existing: any[] = await selectWithJoins(
+      "role",
+      [],
+      { companyId, financialYearId, roleNo: billNo, delete: 0 },
+      ["roleId"],
+    );
 
-  return null;
-};
+    if (existing.length === 0) return billNo;
 
-// Saare departments company ke aur exist karte hon
-const validateDepartments = async (
-  companyId: Id,
-  departmentIds: number[],
-): Promise<string | null> => {
-  if (!departmentIds.length) return null;
-
-  const rows: any[] = await selectWithJoins(
-    "department",
-    [],
-    { departmentId: departmentIds, companyId, delete: 0 },
-    ["departmentId"],
-  );
-
-  if (rows.length !== new Set(departmentIds).size) {
-    return "One or more selected departments were not found.";
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   return null;
 };
 
-// Role ke departments replace karo (purane soft delete, naye insert)
-const syncRoleDepartments = async (
-  companyId: Id,
-  roleId: number,
-  restriction: string,
-  departmentIds: number[],
-): Promise<void> => {
-  await updateModel(
-    "roledepartment",
-    { delete: 1 },
-    { roleId, companyId, delete: 0 },
-  );
+// ---- Next Role No (drawer preview) ----
+export const getNextRoleNo = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  try {
+    const companyId = await getCompanyIdFromToken(req);
 
-  if (restriction !== "selected") return;
+    if (!companyId) {
+      return requiredmessage(res, "Unauthorized. Please login again.");
+    }
 
-  for (const departmentId of [...new Set(departmentIds)]) {
-    await saveModel("roledepartment", {
-      companyId,
-      roleId,
-      departmentId,
-      delete: 0,
-    });
+    const { financialYearId } = req.query as { financialYearId?: string };
+
+    if (!financialYearId) {
+      return errorResponse(
+        res,
+        "Financial Year not found. Please select a company year.",
+      );
+    }
+
+    const fy: any = await getFinancialYearById(
+      financialYearId as any,
+      Number(companyId),
+    );
+    if (!fy) return errorResponse(res, "Invalid Financial Year.");
+
+    const roleNo = await generateUniqueRoleNo(
+      Number(companyId),
+      fy.financialYearId,
+    );
+
+    if (!roleNo) {
+      return errorResponse(
+        res,
+        "Could not generate a unique Role ID. Please try again.",
+      );
+    }
+
+    return successResponse(
+      res,
+      { roleNo, fyLabel: fy.fyLabel, financialYearId: fy.financialYearId },
+      "Role ID generated successfully",
+    );
+  } catch (error) {
+    return errorResponse(res, "Something Went Wrong", error);
   }
 };
 
 // ---- Create ----
-export const createRole = async (
-  req: Request,
-  res: Response,
-): Promise<any> => {
+export const createRole = async (req: Request, res: Response): Promise<any> => {
   try {
     const companyId = await getCompanyIdFromToken(req);
 
@@ -199,37 +199,29 @@ export const createRole = async (
 
     if (!fy) return errorResponse(res, "Invalid Financial Year.");
 
-    const code = normalizeCode(body.roleCode);
-
-    if (await isCodeTaken(companyId, code)) {
-      return requiredmessage(res, "Role code already exists.");
+    const roleName = String(body.roleName || "").trim();
+    if (await isNameTaken(companyId, roleName)) {
+      return requiredmessage(res, "Role name already exists.");
     }
-
-    const roleCategoryId = Number(body.roleCategoryId);
-
-    const categoryError = await validateCategory(companyId, roleCategoryId);
-    if (categoryError) return errorResponse(res, categoryError);
-
-    const departmentIds =
-      body.departmentRestriction === "selected"
-        ? (body.departmentIds || []).map(Number)
-        : [];
-
-    const departmentError = await validateDepartments(companyId, departmentIds);
-    if (departmentError) return errorResponse(res, departmentError);
-
     const creator = getCreator(req, body, companyId);
+
+    const roleNo = await generateUniqueRoleNo(
+      Number(companyId),
+      fy.financialYearId,
+    );
+    if (!roleNo) {
+      return errorResponse(
+        res,
+        "Could not generate a unique Role ID. Please try again.",
+      );
+    }
 
     // roleId auto-increment hai, DB khud banata hai
     const saved: any = await saveModel("role", {
       companyId,
       financialYearId: fy.financialYearId,
-      roleCode: code,
-      roleName: String(body.roleName || "").trim(),
-      roleCategoryId,
-      description: body.description ? String(body.description).trim() : "",
-      defaultDataScope: body.defaultDataScope,
-      departmentRestriction: body.departmentRestriction,
+      roleNo,
+      roleName,
       status: body.status || "Active",
       createdBy: creator.by,
       createdtype: creator.type,
@@ -240,16 +232,9 @@ export const createRole = async (
       return errorResponse(res, "Failed to save role");
     }
 
-    await syncRoleDepartments(
-      companyId,
-      saved.roleId,
-      body.departmentRestriction,
-      departmentIds,
-    );
-
     return successResponse(
       res,
-      { roleId: saved.roleId },
+      { roleId: saved.roleId, roleNo },
       "Role created successfully.",
     );
   } catch (error) {
@@ -278,13 +263,9 @@ export const getRoleList = async (
       { companyId, delete: 0 },
       [
         "roleId",
+        "roleNo",
         "financialYearId",
-        "roleCode",
         "roleName",
-        "roleCategoryId",
-        "description",
-        "defaultDataScope",
-        "departmentRestriction",
         "status",
         "createdBy",
         "createdtype",
@@ -298,49 +279,6 @@ export const getRoleList = async (
     if (!rows.length) {
       return successResponse(res, [], "Roles fetched successfully.");
     }
-
-    // Category names
-    const categoryRows: any[] = await selectWithJoins(
-      "rolecategory",
-      [],
-      { companyId, delete: 0 },
-      ["roleCategoryId", "roleCategoryName"],
-    );
-
-    const categoryMap: Record<string, string> = {};
-    categoryRows.forEach((c) => {
-      categoryMap[String(c.roleCategoryId)] = c.roleCategoryName;
-    });
-
-    // Role -> departments (mapping + names)
-    const mappingRows: any[] = await selectWithJoins(
-      "roledepartment",
-      [],
-      { companyId, delete: 0 },
-      ["roleId", "departmentId"],
-    );
-
-    const departmentRows: any[] = await selectWithJoins(
-      "department",
-      [],
-      { companyId, delete: 0 },
-      ["departmentId", "departmentName"],
-    );
-
-    const departmentNameMap: Record<string, string> = {};
-    departmentRows.forEach((d) => {
-      departmentNameMap[String(d.departmentId)] = d.departmentName;
-    });
-
-    const roleDepartments: Record<string, number[]> = {};
-    mappingRows.forEach((m) => {
-      const key = String(m.roleId);
-      if (!roleDepartments[key]) roleDepartments[key] = [];
-      // Delete ho chuke department ko skip karo
-      if (departmentNameMap[String(m.departmentId)]) {
-        roleDepartments[key].push(m.departmentId);
-      }
-    });
 
     // Company names (createdBy / updatedBy = companyId ho to)
     const companyMap: Record<string, string> = {};
@@ -373,31 +311,18 @@ export const getRoleList = async (
       return companyMap[String(value)] || String(value);
     };
 
-    const data = rows.map((r) => {
-      const deptIds = roleDepartments[String(r.roleId)] || [];
-
-      return {
-        id: String(r.roleId),
-        roleId: r.roleId,
-        financialYearId: r.financialYearId,
-        roleCode: r.roleCode,
-        roleName: r.roleName,
-        roleCategoryId: r.roleCategoryId,
-        roleCategoryName: categoryMap[String(r.roleCategoryId)] || "",
-        description: r.description || "",
-        defaultDataScope: r.defaultDataScope,
-        departmentRestriction: r.departmentRestriction,
-        departmentIds: deptIds,
-        departmentNames: deptIds.map(
-          (id) => departmentNameMap[String(id)] || "",
-        ),
-        status: r.status,
-        createdBy: who(r.createdBy),
-        updatedBy: who(r.updatedBy),
-        created: r.created,
-        updated: r.updated,
-      };
-    });
+    const data = rows.map((r) => ({
+      id: String(r.roleId),
+      roleId: r.roleId,
+      roleNo: r.roleNo || "",
+      financialYearId: r.financialYearId,
+      roleName: r.roleName,
+      status: r.status,
+      createdBy: who(r.createdBy),
+      updatedBy: who(r.updatedBy),
+      created: r.created,
+      updated: r.updated,
+    }));
 
     return successResponse(res, data, "Roles fetched successfully.");
   } catch (error) {
@@ -406,10 +331,7 @@ export const getRoleList = async (
 };
 
 // ---- Update (status toggle bhi isi se hota hai) ----
-export const updateRole = async (
-  req: Request,
-  res: Response,
-): Promise<any> => {
+export const updateRole = async (req: Request, res: Response): Promise<any> => {
   try {
     const companyId = await getCompanyIdFromToken(req);
 
@@ -424,59 +346,29 @@ export const updateRole = async (
       "role",
       [],
       { roleId, companyId, delete: 0 },
-      ["roleId", "roleCategoryId"],
+      ["roleId"],
     );
 
     if (!existing.length) {
       return requiredmessage(res, "Role not found.");
     }
 
-    const code = normalizeCode(body.roleCode);
-
-    if (await isCodeTaken(companyId, code, roleId)) {
-      return requiredmessage(res, "Role code already exists.");
+    const roleName = String(body.roleName || "").trim();
+    if (await isNameTaken(companyId, roleName, roleId)) {
+      return requiredmessage(res, "Role name already exists.");
     }
-
-    const roleCategoryId = Number(body.roleCategoryId);
-
-    // Category change nahi hui to inactive category par bhi role update ho sakta hai
-    if (Number(existing[0].roleCategoryId) !== roleCategoryId) {
-      const categoryError = await validateCategory(companyId, roleCategoryId);
-      if (categoryError) return errorResponse(res, categoryError);
-    }
-
-    const departmentIds =
-      body.departmentRestriction === "selected"
-        ? (body.departmentIds || []).map(Number)
-        : [];
-
-    const departmentError = await validateDepartments(companyId, departmentIds);
-    if (departmentError) return errorResponse(res, departmentError);
-
     const creator = getCreator(req, body, companyId);
 
     // financialYearId, createdBy update me change nahi hote
     await updateModel(
       "role",
       {
-        roleCode: code,
         roleName: String(body.roleName || "").trim(),
-        roleCategoryId,
-        description: body.description ? String(body.description).trim() : "",
-        defaultDataScope: body.defaultDataScope,
-        departmentRestriction: body.departmentRestriction,
         status: body.status || "Active",
         updatedBy: creator.by,
         updated: new Date(),
       },
       { roleId, companyId },
-    );
-
-    await syncRoleDepartments(
-      companyId,
-      roleId,
-      body.departmentRestriction,
-      departmentIds,
     );
 
     return successResponse(res, {}, "Role updated successfully.");
@@ -486,10 +378,7 @@ export const updateRole = async (
 };
 
 // ---- Delete (soft delete) ----
-export const deleteRole = async (
-  req: Request,
-  res: Response,
-): Promise<any> => {
+export const deleteRole = async (req: Request, res: Response): Promise<any> => {
   try {
     const companyId = await getCompanyIdFromToken(req);
 
@@ -515,18 +404,18 @@ export const deleteRole = async (
     }
 
     // TODO: Employee module banne ke baad ye check on kar dena
-    // const employees: any[] = await selectWithJoins(
-    //   "employee",
-    //   [],
-    //   { roleId, companyId, delete: 0, status: "Active" },
-    //   ["employeeId"],
-    // );
-    // if (employees.length) {
-    //   return errorResponse(
-    //     res,
-    //     "This role is assigned to active employees. Reassign them first.",
-    //   );
-    // }
+    const employees: any[] = await selectWithJoins(
+      "employee",
+      [],
+      { roleId, companyId, delete: 0 },
+      ["employeeId"],
+    );
+    if (employees.length) {
+      return errorResponse(
+        res,
+        "This role is assigned to employees. Reassign them first.",
+      );
+    }
 
     await updateModel(
       "role",
@@ -534,11 +423,6 @@ export const deleteRole = async (
       { roleId, companyId },
     );
 
-    await updateModel(
-      "roledepartment",
-      { delete: 1 },
-      { roleId, companyId, delete: 0 },
-    );
 
     return successResponse(res, {}, "Role deleted successfully.");
   } catch (error) {

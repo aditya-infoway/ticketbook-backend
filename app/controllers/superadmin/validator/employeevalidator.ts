@@ -74,8 +74,6 @@ export const employeeCreateSchema = Joi.object({
   }),
   pinCode: optionalString(20),
 
-  employeeTypeId: optionalId,
-
   employmentStatus: Joi.string()
     .valid("Active", "Inactive")
     .required()
@@ -85,7 +83,6 @@ export const employeeCreateSchema = Joi.object({
     }),
   remarks: optionalString(500),
 
-  roleCategoryId: optionalId,
   roleId: optionalId,
 
   // array of department ids (or a JSON string of that array if sent as form-data)

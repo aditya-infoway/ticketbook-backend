@@ -51,10 +51,28 @@ export const employeeCreateSchema = Joi.object({
   alternateCountryCode: optionalString(10),
   alternateContact: optionalPhone,
 
-  employeeTypeId: optionalId,
-  designationId: optionalId,
+  country: Joi.string().trim().max(100).required().messages({
+    "string.empty": "Country is required",
+    "any.required": "Country is required",
+  }),
+  state: Joi.string().trim().max(100).required().messages({
+    "string.empty": "State is required",
+    "any.required": "State is required",
+  }),
+  district: Joi.string().trim().max(100).required().messages({
+    "string.empty": "District is required",
+    "any.required": "District is required",
+  }),
+  city: Joi.string().trim().max(100).required().messages({
+    "string.empty": "City is required",
+    "any.required": "City is required",
+  }),
+  address: Joi.string().trim().max(500).required().messages({
+    "string.empty": "Address is required",
+    "any.required": "Address is required",
+  }),
+  pinCode: optionalString(20),
 
-  dateOfJoining: optionalString(20),
   employmentStatus: Joi.string()
     .valid("Active", "Inactive")
     .required()
@@ -62,10 +80,9 @@ export const employeeCreateSchema = Joi.object({
       "any.only": "Employment status must be Active or Inactive",
       "any.required": "Employment status is required",
     }),
-  employmentEndDate: optionalString(20),
+
   remarks: optionalString(500),
 
-  roleCategoryId: optionalId,
   roleId: optionalId,
 
   additionalDepartments: Joi.alternatives()
