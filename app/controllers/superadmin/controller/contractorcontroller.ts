@@ -167,7 +167,7 @@ const validateLinks = async (
   ) {
     return "Selected area is inactive.";
   }
-
+    
   for (const branchId of branchIds) {
     const branchRows: any[] = await selectWithJoins(
       "branch",
@@ -239,6 +239,37 @@ const generateUniqueContractorNo = async (
   return null;
 };
 
+// Only one Active contractor is allowed per zone (area).
+// When activating one, deactivate any other Active ones in the same zone.
+const ensureOnlyOneActiveInZone = async (
+  companyId: Id,
+  areaId: number,
+  currentContractorId?: Id,
+): Promise<void> => {
+  const rows: any[] = await selectWithJoins(
+    "contractor",
+    [],
+    {
+      companyId,
+      areaId,
+      status: "Active",
+      delete: 0,
+    },
+    ["contractorId"],
+  );
+
+  for (const row of rows) {
+    if (String(row.contractorId) === String(currentContractorId ?? ""))
+      continue;
+
+    await updateModel(
+      "contractor",
+      { status: "Inactive", updated: new Date() },
+      { contractorId: row.contractorId, companyId },
+    );
+  }
+};
+
 // ---- Register Contractor (multipart: optional "documents" files) ----
 export const createContractor = async (
   req: Request,
@@ -292,6 +323,12 @@ export const createContractor = async (
       );
     }
 
+    const status = body.status || "Active";
+
+    if (status === "Active") {
+      await ensureOnlyOneActiveInZone(companyId, areaId);
+    }
+
     const creator = getCreator(req, companyId);
     const documents = uploadedFiles(req).map((f) => f.path.replace(/\\/g, "/"));
 
@@ -311,7 +348,7 @@ export const createContractor = async (
       contractorDepartmentId: departmentId,
       password: await bcrypt.hash(String(body.password), 10),
       documents: JSON.stringify(documents),
-      status: body.status || "Active",
+      status,
       createdBy: creator.by,
       createdType: creator.type,
       delete: 0,
@@ -515,6 +552,13 @@ export const updateContractor = async (
       existing.contractorDepartmentId,
     );
     if (deptError) return reject(deptError);
+
+    const status = body.status || "Active";
+
+    if (status === "Active") {
+      await ensureOnlyOneActiveInZone(companyId, areaId, contractorId);
+    }
+
     // Documents: keep what the drawer still lists, then add the new files.
     // No "existingDocuments" sent (e.g. status toggle) = keep all of them.
     const currentDocs = parseDocs(existing.documents);
@@ -540,7 +584,7 @@ export const updateContractor = async (
       branchId: primaryBranchId,
       branchIds: JSON.stringify(branchIds),
       documents: JSON.stringify([...keptDocs, ...newDocs]),
-      status: body.status || "Active",
+      status,
       updatedBy: creator.by,
       updated: new Date(),
     };

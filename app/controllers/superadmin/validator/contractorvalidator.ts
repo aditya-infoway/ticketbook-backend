@@ -57,7 +57,9 @@ export const contractorCreateSchema = Joi.object({
       "any.required": "Mobile number is required",
       "string.pattern.base": "Enter a 10-digit mobile number",
     }),
-  email: Joi.string().trim().email().max(150).allow("", null).messages({
+  email: Joi.string().trim().email().max(150).required().messages({
+    "string.empty": "Email is required",
+    "any.required": "Email is required",
     "string.email": "Enter a valid email",
   }),
   specialization: Joi.string().trim().max(150).allow("", null),
