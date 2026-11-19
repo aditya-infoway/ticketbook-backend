@@ -9,6 +9,11 @@ export const roleCreateSchema = Joi.object({
     "any.required": "Financial Year Id is required",
   }),
 
+  departmentId: Joi.number().integer().required().messages({
+    "number.base": "Department is required",
+    "any.required": "Department is required",
+  }),
+
   roleName: Joi.string().trim().max(150).required().messages({
     "string.empty": "Role name is required",
     "any.required": "Role name is required",

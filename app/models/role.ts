@@ -24,6 +24,11 @@ export default (sequelize: Sequelize) => {
       allowNull: false,
       field: "financialYearId",
     },
+    departmentId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: "departmentId",
+    },
     roleName: {
       type: DataTypes.STRING(150),
       allowNull: false,
