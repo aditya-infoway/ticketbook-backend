@@ -18,6 +18,7 @@ type Id = string | number;
 interface RoleBody {
   roleId?: Id;
   financialYearId?: Id;
+  departmentId?: Id | null;
   roleName: string;
   status?: string;
   createdBy?: Id | null;
@@ -28,6 +29,7 @@ interface RoleRow {
   roleId: number;
   roleNo: string | null;
   financialYearId: number;
+  departmentId: number | null;
   roleName: string;
   status: string;
   createdBy: string | null;
@@ -222,6 +224,7 @@ export const createRole = async (req: Request, res: Response): Promise<any> => {
       financialYearId: fy.financialYearId,
       roleNo,
       roleName,
+      departmentId: body.departmentId ? Number(body.departmentId) : null,
       status: body.status || "Active",
       createdBy: creator.by,
       createdtype: creator.type,
@@ -265,6 +268,7 @@ export const getRoleList = async (
         "roleId",
         "roleNo",
         "financialYearId",
+        "departmentId",
         "roleName",
         "status",
         "createdBy",
@@ -311,12 +315,28 @@ export const getRoleList = async (
       return companyMap[String(value)] || String(value);
     };
 
+    // Fetch departments
+    const deptRows: any[] = await selectWithJoins(
+      "department",
+      [],
+      { companyId, delete: 0 },
+      ["departmentId", "departmentName"],
+    );
+    const deptMap: Record<string, string> = {};
+    deptRows.forEach((d) => {
+      deptMap[String(d.departmentId)] = d.departmentName;
+    });
+
     const data = rows.map((r) => ({
       id: String(r.roleId),
       roleId: r.roleId,
       roleNo: r.roleNo || "",
       financialYearId: r.financialYearId,
       roleName: r.roleName,
+      departmentId: r.departmentId,
+      departmentName: r.departmentId
+        ? deptMap[String(r.departmentId)] || ""
+        : "",
       status: r.status,
       createdBy: who(r.createdBy),
       updatedBy: who(r.updatedBy),
@@ -364,6 +384,7 @@ export const updateRole = async (req: Request, res: Response): Promise<any> => {
       "role",
       {
         roleName: String(body.roleName || "").trim(),
+        departmentId: body.departmentId ? Number(body.departmentId) : null,
         status: body.status || "Active",
         updatedBy: creator.by,
         updated: new Date(),
@@ -422,7 +443,6 @@ export const deleteRole = async (req: Request, res: Response): Promise<any> => {
       { delete: 1, updated: new Date() },
       { roleId, companyId },
     );
-
 
     return successResponse(res, {}, "Role deleted successfully.");
   } catch (error) {
