@@ -36,10 +36,8 @@ interface BranchBody {
   branchEmail: string;
   password?: string | null;
   confirmPassword?: string | null;
-  branchManagerId?: Id | null;
+  branchManagerName: String;
   areaManagerId?: Id | null;
-  openingDate?: string | null;
-  workingHours?: string | null;
   status?: string;
 }
 
@@ -184,7 +182,10 @@ const checkBranchManager = async (
   // Rule: A manager can only be assigned to ONE branch at a time.
   if (assignedBranchId) {
     // If creating (currentBranchId is null) OR editing a different branch
-    if (!currentBranchId || Number(assignedBranchId) !== Number(currentBranchId)) {
+    if (
+      !currentBranchId ||
+      Number(assignedBranchId) !== Number(currentBranchId)
+    ) {
       return "This Branch Manager is already assigned to another branch. Please select a different manager.";
     }
   }
@@ -303,12 +304,13 @@ export const createBranch = async (
     const regionError = await validateRegion(companyId, regionId);
     if (regionError) return errorResponse(res, regionError);
 
-    const branchManagerId = toNumberOrNull(body.branchManagerId);
     const areaManagerId = toNumberOrNull(body.areaManagerId);
 
-    const managerError =
-      (await checkBranchManager(companyId, branchManagerId, null)) ||
-      (await checkAreaManager(companyId, areaManagerId, regionId));
+    const managerError = await checkAreaManager(
+      companyId,
+      areaManagerId,
+      regionId,
+    );
 
     if (managerError) {
       return errorResponse(res, managerError);
@@ -348,7 +350,7 @@ export const createBranch = async (
       phoneNumber: toText(body.phoneNumber),
       branchEmail: email,
       password: passwordHash,
-      branchManagerId,
+      branchManagerName: toText(body.branchManagerName),
       areaManagerId,
       status: body.status || "Active",
       createdBy: creator.by,
@@ -407,7 +409,7 @@ export const getBranchList = async (
         "contactNumber",
         "phoneNumber",
         "branchEmail",
-        "branchManagerId",
+        "branchManagerName",
         "areaManagerId",
         "status",
         "createdBy",
@@ -436,19 +438,7 @@ export const getBranchList = async (
       regionMap[String(r.regionId)] = r.regionName || "";
     });
 
-    // Branch Manager names
-    const branchManagerRows: any[] = await selectWithJoins(
-      "branchmanager",
-      [],
-      { companyId, delete: 0 },
-      ["branchManagerId", "name"],
-    );
-
-    const branchManagerMap: Record<string, string> = {};
-
-    branchManagerRows.forEach((manager) => {
-      branchManagerMap[String(manager.branchManagerId)] = manager.name || "";
-    });
+  
 
     const areaManagerRows: any[] = await selectWithJoins(
       "areamanager",
@@ -479,11 +469,8 @@ export const getBranchList = async (
       contactNumber: r.contactNumber || "",
       phoneNumber: r.phoneNumber || "",
       branchEmail: r.branchEmail,
-      branchManagerId: r.branchManagerId ?? null,
       areaManagerId: r.areaManagerId ?? null,
-      branchManager: r.branchManagerId
-        ? branchManagerMap[String(r.branchManagerId)] || ""
-        : "",
+      branchManager: r.branchManagerName || "",
       areaManager: r.areaManagerId
         ? areaManagerMap[String(r.areaManagerId)] || ""
         : "",
@@ -525,7 +512,6 @@ export const updateBranch = async (
       [
         "branchId",
         "regionId",
-        "branchManagerId",
         "areaManagerId",
         "profilePhoto",
       ],
@@ -546,17 +532,13 @@ export const updateBranch = async (
     const regionError = await validateRegion(companyId, regionId);
     if (regionError) return errorResponse(res, regionError);
 
-    const branchManagerId = toNumberOrNull(body.branchManagerId);
     const areaManagerId = toNumberOrNull(body.areaManagerId);
 
     const managerError =
-      (branchManagerId !== (existing[0].branchManagerId ?? null)
-        ? await checkBranchManager(companyId, branchManagerId, branchId)
-        : null) ||
-      (areaManagerId !== (existing[0].areaManagerId ?? null) ||
+      areaManagerId !== (existing[0].areaManagerId ?? null) ||
       regionId !== (existing[0].regionId ?? null)
         ? await checkAreaManager(companyId, areaManagerId, regionId)
-        : null);
+        : null;
 
     if (managerError) {
       return errorResponse(res, managerError);
@@ -578,7 +560,7 @@ export const updateBranch = async (
       contactNumber: toText(body.contactNumber),
       phoneNumber: toText(body.phoneNumber),
       branchEmail: email,
-      branchManagerId,
+      branchManagerName: toText(body.branchManagerName),
       areaManagerId,
       status: body.status || "Active",
       updatedBy: creator.by,

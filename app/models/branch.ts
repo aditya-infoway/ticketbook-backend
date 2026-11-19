@@ -58,7 +58,6 @@ export default (sequelize: Sequelize) => {
       field: "fullAddress",
     },
     pinCode: { type: DataTypes.STRING(20), allowNull: true, field: "pinCode" },
-
     contactNumber: {
       type: DataTypes.STRING(20),
       allowNull: true,
@@ -89,7 +88,11 @@ export default (sequelize: Sequelize) => {
       field: "tokenDate",
     },
     // Kept as strings until the employee dropdown is wired to real ids
-    branchManagerId: { type: DataTypes.INTEGER, allowNull: true },
+    branchManagerName: {
+      type: DataTypes.STRING(150),
+      allowNull: true,
+      field: "branchManagerName",
+    },
     areaManagerId: { type: DataTypes.INTEGER, allowNull: true },
 
     status: {
@@ -115,7 +118,6 @@ export default (sequelize: Sequelize) => {
       allowNull: true,
       field: "updatedBy",
     },
-
     created: {
       type: DataTypes.DATE,
       allowNull: false,

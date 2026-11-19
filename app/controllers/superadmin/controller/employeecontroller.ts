@@ -182,7 +182,7 @@ const validateLinks = async (
       return "Selected role is inactive.";
     }
   }
-
+                                                
   if (links.branchId) {
     const rows: any[] = await selectWithJoins(
       "branch",
